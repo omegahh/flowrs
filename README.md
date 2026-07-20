@@ -11,11 +11,14 @@ FlowRs is a standalone pipeline lifecycle manager that executes DAG-based workfl
 - ✅ **Category-aware defaults** — pipeline-defined discriminator selects per-category param defaults
 - ✅ **Cross-parameter constraints** — `when`/`require` expressions validated after resolution
 - ✅ **Trigger rules** — Airflow-style `all_success` / `one_failed` / `always` / etc.
+- ✅ **Error taxonomy** — structured error codes with retry policies and per-error hooks
+- ✅ **Lifecycle hooks** — on_start, on_success, on_failure, and per-error-code hooks
 - ✅ **Multi-language stdlib** — bash, Python, R, and C++ (header-only)
 - ✅ **Signal handling** — graceful cancellation with process-group cleanup
 - ✅ **Scaffold system** — `flowrs create` bundles a stdlib into each pipeline
 - ✅ **License system** — RSA-2048 signatures with NTP-backed clock-tamper detection
 - ✅ **Registry** — name-based pipeline lookup at `~/.flowrs/registry.toml`
+- ✅ **Resume support** — pick up failed pipelines with version safety checks
 - ✅ **Dry-run mode** — preview the execution plan without running
 
 ## Installation
@@ -286,6 +289,71 @@ Each scaffold bundles a stdlib copied into the pipeline directory:
 - `flowrs::Logger` — RAII logger
 - `flowrs::get_config<T>()`, `flowrs::require_file/dir/command()`
 - File and time utilities matching the bash/python/R interface
+
+## Error Taxonomy & Retry Logic
+
+FlowRs supports structured error reporting with automatic retry policies and per-error hooks.
+
+### Defining Error Codes
+
+```toml
+[[errors]]
+code = "NO_INPUT_DATA"
+description = "Required input files not found"
+retryable = false
+
+[[errors]]
+code = "NETWORK_TIMEOUT"
+description = "Remote resource unreachable"
+retryable = true
+max_retries = 3
+```
+
+### Emitting Structured Errors
+
+**Bash:**
+```bash
+flowrs_error NO_INPUT_DATA "No FASTQ files found" \
+    input_dir="$INPUT_DIR" \
+    expected_pattern="*.fq.gz"
+```
+
+**Python:**
+```python
+from flowrs import flowrs_error
+flowrs_error("NETWORK_TIMEOUT", "API request failed", 
+    endpoint="https://api.example.com", 
+    status_code="504")
+```
+
+**R:**
+```r
+flowrs_error("LOW_COVERAGE", "Coverage below threshold",
+    taxid = "562", coverage = "3.2", threshold = "10.0")
+```
+
+Errors are captured in `status.json` with full context and trigger retry logic based on manifest definitions.
+
+### Lifecycle Hooks
+
+Execute custom scripts at key pipeline events:
+
+```toml
+[pipeline.hooks]
+on_start = ["setup_env.sh"]
+on_success = ["notify_success.sh", "cleanup.sh"]
+on_failure = ["notify_failure.sh", "save_logs.sh"]
+
+[pipeline.hooks.on_error]
+NO_INPUT_DATA = ["alert_missing_data.sh"]
+NETWORK_TIMEOUT = ["retry_with_backoff.sh"]
+```
+
+Hooks receive environment variables:
+- `on_failure`: `FAILED_STEP`, `EXIT_CODE`
+- `on_error`: `ERROR_CODE`, plus all context fields from the error (sensitive keys filtered)
+
+All hooks run to completion even if one fails, ensuring cleanup and notifications always execute.
 
 ## Execution Model
 
