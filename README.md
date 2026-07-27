@@ -2,16 +2,16 @@
 
 **Fast, safe workflow orchestration for data analysis pipelines**
 
-FlowRs is a standalone pipeline lifecycle manager that executes DAG-based workflows defined in TOML manifests. It features parallel step execution, cooperative signal handling, typed parameter resolution with category-aware defaults, and a bundled standard library for bash, Python, R, and C++ scripts.
+FlowRs is a standalone pipeline lifecycle manager that executes DAG-based workflows defined in TOML manifests. It features parallel step execution, cooperative signal handling, typed parameter resolution with profile-aware defaults, and a bundled standard library for bash, Python, R, and C++ scripts.
 
 ## Features
 
 - ✅ **DAG-based execution** — automatic parallelization of independent steps
 - ✅ **Type-safe parameters** — integer, number, string, boolean with `min`/`max`/`enum` validation
-- ✅ **Category-aware defaults** — pipeline-defined discriminator selects per-category param defaults
+- ✅ **Profile-aware defaults** — pipeline-defined profile selects per-profile param defaults
 - ✅ **Cross-parameter constraints** — `when`/`require` expressions validated after resolution
 - ✅ **Trigger rules** — Airflow-style `all_success` / `one_failed` / `always` / etc.
-- ✅ **Error taxonomy** — structured error codes with retry policies and per-error hooks
+- ✅ **Error taxonomy** — exit-code-based error codes with retry policies and per-error hooks
 - ✅ **Lifecycle hooks** — on_start, on_success, on_failure, and per-error-code hooks
 - ✅ **Multi-language stdlib** — bash, Python, R, and C++ (header-only)
 - ✅ **Signal handling** — graceful cancellation with process-group cleanup
@@ -71,7 +71,7 @@ my_pipeline/
 │   └── cpp/             # Header-only flowrs.hpp + vendored helpers
 ├── lib/                 # Custom shared libraries
 ├── sources/             # C/C++ source code (built into steps/ via Makefile)
-├── bin/                 # Helper tools, e.g. discriminator detectors
+├── bin/                 # Helper tools, e.g. profile detectors
 └── tests/               # Test fixtures
 ```
 
@@ -83,12 +83,12 @@ name = "my_pipeline"
 version = "1.0"
 min_threads = 4   # optional: refuse to run with fewer
 
-# Pipeline-defined discriminator drives category-specific param defaults
-[pipeline.discriminator]
+# Pipeline-defined profile drives profile-specific param defaults
+[pipeline.profile]
 param = "SEQTYPE"
 detector = "detect_seqtype.sh"   # script in bin/
 
-[pipeline.discriminator.categories]
+[pipeline.profile.profiles]
 ngs = ["PAIRED", "SINGLE"]
 tgs = ["TGSONT"]
 
@@ -127,7 +127,7 @@ min = 0
 max = 40
 description = "Minimum quality score"
 
-# Category-specific defaults
+# Profile-specific defaults
 [params.threshold]
 type = "number"
 default = 0.5
@@ -292,47 +292,63 @@ Each scaffold bundles a stdlib copied into the pipeline directory:
 
 ## Error Taxonomy & Retry Logic
 
-FlowRs supports structured error reporting with automatic retry policies and per-error hooks.
+FlowRs uses an exit-code-based error model with automatic retry policies and per-error hooks.
 
 ### Defining Error Codes
+
+Each `[[errors]]` entry declares a unique `exit_code` in the range 1–99. Exit code 0 and codes 100–255 are reserved for the engine (100–125 for engine built-ins including the timeout sentinel 124 → `TIMEOUT`, plus 126–255), so the manifest fails validation if an author reuses them or duplicates an `exit_code`.
 
 ```toml
 [[errors]]
 code = "NO_INPUT_DATA"
-description = "Required input files not found"
+exit_code = 10
+severity = "error"
+category = "validation"
+message = "Required input files not found"
 retryable = false
 
 [[errors]]
 code = "NETWORK_TIMEOUT"
-description = "Remote resource unreachable"
+exit_code = 11
+severity = "error"
+category = "runtime"
+message = "Remote resource unreachable"
 retryable = true
 max_retries = 3
 ```
 
-### Emitting Structured Errors
+Messages are static — there is no `{placeholder}` interpolation.
+
+### Reporting Errors
+
+A step reports an error by calling the stdlib `flowrs_error("CODE")`, which looks up the code in the `FLOWRS_ERROR_MAP` env var (injected by the engine) and exits with the declared exit code. The engine maps the child's exit code back to the `[[errors]]` definition, records a `resolved_error` in `status.json`, drives retry (`retryable`/`max_retries`), and fires `on_error[CODE]` hooks.
 
 **Bash:**
 ```bash
-flowrs_error NO_INPUT_DATA "No FASTQ files found" \
-    input_dir="$INPUT_DIR" \
-    expected_pattern="*.fq.gz"
+flowrs_error "NO_INPUT_DATA"
 ```
 
 **Python:**
 ```python
 from flowrs import flowrs_error
-flowrs_error("NETWORK_TIMEOUT", "API request failed", 
-    endpoint="https://api.example.com", 
-    status_code="504")
+flowrs_error("NETWORK_TIMEOUT")
 ```
 
 **R:**
 ```r
-flowrs_error("LOW_COVERAGE", "Coverage below threshold",
-    taxid = "562", coverage = "3.2", threshold = "10.0")
+flowrs_error("LOW_COVERAGE")
 ```
 
-Errors are captured in `status.json` with full context and trigger retry logic based on manifest definitions.
+### Built-in Errors
+
+The engine resolves unmapped exit codes to built-in, fatal errors that flow through the same path (so OOM/timeout/signal kills are catchable via `on_error`):
+
+- `126` → `NOT_EXECUTABLE`
+- `127` → `COMMAND_NOT_FOUND`
+- `128+N` → signal errors (`SIGINT`=130, `SIGABRT`=134, `SIGKILL`=137, `SIGSEGV`=139, `SIGTERM`=143; generic `SIGNAL` otherwise)
+- any other unmapped non-zero code → `UNKNOWN_ERROR`
+
+Profile detector failures resolve the same way, so `on_error`/`on_failure` hooks fire even when a detector fails before the engine starts.
 
 ### Lifecycle Hooks
 
@@ -351,15 +367,15 @@ NETWORK_TIMEOUT = ["retry_with_backoff.sh"]
 
 Hooks receive environment variables:
 - `on_failure`: `FAILED_STEP`, `EXIT_CODE`
-- `on_error`: `ERROR_CODE`, plus all context fields from the error (sensitive keys filtered)
+- `on_error`: `ERROR_CODE`, plus the resolved error's `exit_code`
 
 All hooks run to completion even if one fails, ensuring cleanup and notifications always execute.
 
 ## Execution Model
 
 1. Parse and validate `manifest.toml`.
-2. Resolve parameters: `const` > user override (`-p`/`-c`) > category-specific default > base default.
-3. If a discriminator is declared, run its detector to select the active category.
+2. Resolve parameters: `const` > user override (`-p`/`-c`) > profile-specific default > base default.
+3. If a profile is declared, run its detector to select the active profile.
 4. Build DAG from step dependencies; check for cycles.
 5. Decompose into parallel execution layers (Kahn-style topological levels).
 6. Execute layers; steps within each layer run concurrently.
@@ -372,7 +388,7 @@ Without `-o`, `input_dir` doubles as the workspace root and outputs are created 
 
 ```
 {workspace}/
-├── out_{TASKID}/        # persisted results, log/, status.json, config.json
+├── out_{TASKID}/        # persisted results, logs/, status.json, config.json
 └── tmp_{TASKID}/        # cleaned up unless --mode debug
 ```
 
