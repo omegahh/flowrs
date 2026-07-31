@@ -53,7 +53,7 @@ flowrs show ./my_pipeline
 flowrs run ./my_pipeline -i /path/to/input -t task001
 
 # Dry run (show execution plan without running)
-flowrs run ./my_pipeline -i /path/to/input -t task001 -m dry-run
+flowrs run ./my_pipeline -i /path/to/input -t task001 --dry-run
 ```
 
 ## Pipeline Structure
@@ -236,8 +236,11 @@ flowrs run <PIPELINE> -i DIR -t TASK [OPTIONS]
     -s, --start-step <STEP>      Start from a specific step
     -e, --end-step <STEP>        End at a specific step
     -k, --skip-steps <STEP>...   Skip specific steps
-    -m, --mode <MODE>            production | debug | dry-run [default: production]
-    -v, --verbose                Verbose output (implied by --mode debug)
+    --dry-run                    Plan the run and print the steps without executing them
+    --debug                      Keep intermediate files: DBG_DIR points at OUT_DIR and
+                                 tmp_<TASKID>/ is not cleaned up
+    -v, --verbose                Verbose console output; repeatable (-vv)
+    -q, --quiet                  Suppress all output except errors
 
 # Pipeline management
 flowrs create <NAME> [-d DESC] [--update]
@@ -267,7 +270,7 @@ Each scaffold bundles a stdlib copied into the pipeline directory:
 - Execution: `exec_cmd`, `exec_cmd_silent`, `exec_with_retry`
 - File utils: `get_fastq_prefix`, `list_r1_files`, `count_reads`
 - Time: `timestr`, `elapsed_time`, `benchmark`
-- Locking: `acquire_lock`, `release_lock`, `with_lock`
+- Locking: `acquire_lock`, `release_lock`, `with_lock`, `list_locks`, `force_unlock` (see [docs/stdlib-locking.md](docs/stdlib-locking.md))
 
 **Python (`stdlib/python/flowrs.py`):**
 - `Context.from_env()` — runtime context
@@ -389,7 +392,7 @@ Without `-o`, `input_dir` doubles as the workspace root and outputs are created 
 ```
 {workspace}/
 ├── out_{TASKID}/        # persisted results, logs/, status.json, config.json
-└── tmp_{TASKID}/        # cleaned up unless --mode debug
+└── tmp_{TASKID}/        # cleaned up unless --debug
 ```
 
 Steps see `WORKSPACE_DIR` (the workspace root) for cross-task coordination such as locks.
