@@ -47,7 +47,7 @@ Move the `flowrs` binary somewhere on your `PATH` (e.g. `/usr/local/bin`) to use
 flowrs create my_pipeline
 
 # Inspect it
-flowrs show ./my_pipeline
+flowrs inspect ./my_pipeline
 
 # Run it
 flowrs run ./my_pipeline -i /path/to/input -t task001
@@ -248,7 +248,7 @@ flowrs create <NAME> [-d DESC] [--update]
 flowrs compile <DIR> [--check] [-o OUT] [--sign KEY]
                                   Validate a manifest. (Packaging into .flowpkg and signing
                                   are accepted on the CLI but not yet implemented.)
-flowrs show <PIPELINE>            Display pipeline details and DAG
+flowrs inspect <PIPELINE>         Display steps, DAG, params, constraints, errors, hooks
 flowrs register <PATH> [--name N] Register a pipeline for name-based lookup
 flowrs unregister <NAME>          Remove a registered pipeline
 flowrs list [--detailed]          List registered pipelines
