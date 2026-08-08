@@ -1,8 +1,8 @@
 # FlowRs
 
-**Fast, safe workflow orchestration for data analysis pipelines**
+**Fast, safe workflow orchestration for computational pipelines**
 
-FlowRs is a standalone pipeline lifecycle manager that executes DAG-based workflows defined in TOML manifests. It features parallel step execution, cooperative signal handling, typed parameter resolution with profile-aware defaults, and a bundled standard library for bash, Python, R, and C++ scripts.
+FlowRs is a general-purpose pipeline orchestration system that executes DAG-based workflows defined in TOML manifests. It features parallel step execution, cooperative signal handling, typed parameter resolution with profile-aware defaults, and a bundled standard library for bash, Python, R, and C++ scripts. Originally designed for bioinformatics workflows, FlowRs is suitable for any computational pipeline requiring reproducible, parallel execution.
 
 ## Features
 
@@ -18,6 +18,8 @@ FlowRs is a standalone pipeline lifecycle manager that executes DAG-based workfl
 - ✅ **Scaffold system** — `flowrs create` bundles a stdlib into each pipeline
 - ✅ **License system** — RSA-2048 signatures with NTP-backed clock-tamper detection
 - ✅ **Registry** — name-based pipeline lookup at `~/.flowrs/registry.toml`
+- ✅ **Machine-readable output** — JSON/YAML output for CI/CD integration
+- ✅ **Shell completions** — bash, zsh, and fish completions included
 - ✅ **Resume support** — pick up failed pipelines with version safety checks
 - ✅ **Dry-run mode** — preview the execution plan without running
 
@@ -39,6 +41,23 @@ sha256sum -c flowrs-linux-x86_64.tar.gz.sha256
 ```
 
 Move the `flowrs` binary somewhere on your `PATH` (e.g. `/usr/local/bin`) to use it from anywhere. Browse all versions on the [Releases page](https://github.com/omegahh/flowrs/releases).
+
+### Shell Completions
+
+Release archives include shell completions in the `completions/` directory:
+
+```bash
+# Bash (system-wide)
+sudo cp completions/flowrs.bash /etc/bash_completion.d/flowrs
+
+# Zsh (user)
+mkdir -p ~/.zsh/completion
+cp completions/_flowrs ~/.zsh/completion/
+# Add to ~/.zshrc: fpath=(~/.zsh/completion $fpath)
+
+# Fish (user)
+cp completions/flowrs.fish ~/.config/fish/completions/
+```
 
 ## Quick Start
 
@@ -150,6 +169,7 @@ Steps form a DAG via `depends_on`. Steps without mutual dependencies run in para
 Scripts use the bundled stdlib for common operations.
 
 **Bash:**
+
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
@@ -169,6 +189,7 @@ log_success "QC completed"
 ```
 
 **Python:**
+
 ```python
 #!/usr/bin/env python3
 import sys
@@ -187,6 +208,7 @@ with Logger(ctx.log_dir / "analyze.log") as log:
 ```
 
 **R:**
+
 ```r
 #!/usr/bin/env Rscript
 script_dir <- dirname(sys.frame(1)$ofile)
@@ -205,6 +227,7 @@ log_success("Visualization completed")
 ```
 
 **C++:**
+
 ```cpp
 // sources/qc.cpp — compiled into steps/qc by `make` in the scaffold
 #include "flowrs.hpp"
@@ -220,11 +243,16 @@ int main(int argc, char** argv) {
     return 0;
 }
 ```
+
 Compile flags: `-std=c++17 -Istdlib/cpp -Istdlib/cpp/vendor -lz`. Vendored headers: `clipp.h` (arg parsing) and `kseqpp/` (FASTA/FASTQ reading).
 
 ## CLI Reference
 
 ```bash
+# Global flags (available on all commands)
+-q, --quiet                      Suppress all output except errors
+-v, --verbose                    Increase verbosity (repeatable: -v, -vv)
+
 # Pipeline execution
 flowrs run <PIPELINE> -i DIR -t TASK [OPTIONS]
     -i, --input <DIR>            Input directory
@@ -232,26 +260,25 @@ flowrs run <PIPELINE> -i DIR -t TASK [OPTIONS]
     -o, --output <DIR>           Optional separate output dir (input becomes read-only raw data)
     -c, --config <FILE>          Config file: JSON, TOML, or KEY=VALUE (.env style); detected by extension
     -p, --param <KEY=VALUE>      Inline param override; repeatable
-    -@, --threads <N>            Threads available for execution (default: CPU count)
+    -j, --threads <N>            Threads available for execution (default: CPU count)
     -s, --start-step <STEP>      Start from a specific step
     -e, --end-step <STEP>        End at a specific step
     -k, --skip-steps <STEP>...   Skip specific steps
     --dry-run                    Plan the run and print the steps without executing them
     --debug                      Keep intermediate files: DBG_DIR points at OUT_DIR and
                                  tmp_<TASKID>/ is not cleaned up
-    -v, --verbose                Verbose console output; repeatable (-vv)
-    -q, --quiet                  Suppress all output except errors
 
 # Pipeline management
 flowrs create <NAME> [-d DESC] [--update]
                                   Scaffold a new pipeline (or update its bundled stdlib)
-flowrs compile <DIR> [--check] [-o OUT] [--sign KEY]
-                                  Validate a manifest. (Packaging into .flowpkg and signing
-                                  are accepted on the CLI but not yet implemented.)
-flowrs inspect <PIPELINE>         Display steps, DAG, params, constraints, errors, hooks
+flowrs compile <DIR> [--check] [-o OUT] [--encrypt] [--author NAME]
+                                  Validate and optionally package/encrypt a pipeline into .flowpkg
+flowrs inspect <PIPELINE> [--format FORMAT]
+                                  Display steps, DAG, params, constraints, errors, hooks
 flowrs register <PATH> [--name N] Register a pipeline for name-based lookup
 flowrs unregister <NAME>          Remove a registered pipeline
-flowrs list [--detailed]          List registered pipelines
+flowrs list [--detailed] [--format FORMAT]
+                                  List registered pipelines
 
 # License management
 flowrs license status [-f FILE]   Show license status with cryptographic validation
@@ -259,11 +286,27 @@ flowrs license add <FILE>         Install a license file to ~/.flowrs/license.js
 flowrs license fingerprint        Show machine fingerprint for license requests
 ```
 
+### Machine-Readable Output
+
+The `list` and `inspect` commands support `--format` for structured output:
+
+```bash
+# Get pipeline info as JSON
+flowrs inspect my_pipeline --format json | jq '.steps'
+
+# List registered pipelines as YAML
+flowrs list --detailed --format yaml
+
+# Check if a pipeline exists programmatically
+flowrs list --format json | jq -r '.pipelines[] | select(.name=="mypipe") | .exists'
+```
+
 ## Standard Library
 
 Each scaffold bundles a stdlib copied into the pipeline directory:
 
 **Bash (`stdlib/bash/flowrs.sh`):**
+
 - Logging: `log_info`, `log_warn`, `log_error`, `log_success`, `log_debug`, `die`
 - Validation: `require_file`, `require_dir`, `require_var`, `require_command`
 - Config: `get_config`, `get_config_int`, `get_config_bool`
@@ -273,6 +316,7 @@ Each scaffold bundles a stdlib copied into the pipeline directory:
 - Locking: `acquire_lock`, `release_lock`, `with_lock`, `list_locks`, `force_unlock` (see [docs/stdlib-locking.md](docs/stdlib-locking.md))
 
 **Python (`stdlib/python/flowrs.py`):**
+
 - `Context.from_env()` — runtime context
 - `Logger` — logging with context manager
 - `get_config()` — config with type casting
@@ -281,6 +325,7 @@ Each scaffold bundles a stdlib copied into the pipeline directory:
 - FASTQ utilities, time utilities
 
 **R (`stdlib/r/flowrs.R`):**
+
 - Logging functions
 - Validation functions
 - `get_config()` with type casting
@@ -288,6 +333,7 @@ Each scaffold bundles a stdlib copied into the pipeline directory:
 - Time utilities
 
 **C++ (`stdlib/cpp/flowrs.hpp`, header-only):**
+
 - `flowrs::Context::from_env()` — runtime context (mirrors Python)
 - `flowrs::Logger` — RAII logger
 - `flowrs::get_config<T>()`, `flowrs::require_file/dir/command()`
@@ -327,17 +373,20 @@ Messages are static — there is no `{placeholder}` interpolation.
 A step reports an error by calling the stdlib `flowrs_error("CODE")`, which looks up the code in the `FLOWRS_ERROR_MAP` env var (injected by the engine) and exits with the declared exit code. The engine maps the child's exit code back to the `[[errors]]` definition, records a `resolved_error` in `status.json`, drives retry (`retryable`/`max_retries`), and fires `on_error[CODE]` hooks.
 
 **Bash:**
+
 ```bash
 flowrs_error "NO_INPUT_DATA"
 ```
 
 **Python:**
+
 ```python
 from flowrs import flowrs_error
 flowrs_error("NETWORK_TIMEOUT")
 ```
 
 **R:**
+
 ```r
 flowrs_error("LOW_COVERAGE")
 ```
@@ -369,6 +418,7 @@ NETWORK_TIMEOUT = ["retry_with_backoff.sh"]
 ```
 
 Hooks receive environment variables:
+
 - `on_failure`: `FAILED_STEP`, `EXIT_CODE`
 - `on_error`: `ERROR_CODE`, plus the resolved error's `exit_code`
 
@@ -376,34 +426,33 @@ All hooks run to completion even if one fails, ensuring cleanup and notification
 
 ## Execution Model
 
-1. Parse and validate `manifest.toml`.
-2. Resolve parameters: `const` > user override (`-p`/`-c`) > profile-specific default > base default.
-3. If a profile is declared, run its detector to select the active profile.
-4. Build DAG from step dependencies; check for cycles.
-5. Decompose into parallel execution layers (Kahn-style topological levels).
-6. Execute layers; steps within each layer run concurrently.
-7. On failure or signal (SIGINT/SIGTERM), evaluate trigger rules to decide whether downstream steps still run; cancel and kill remaining process trees on shutdown.
-8. Write `status.json` and `config.json` to the output directory.
+FlowRs automatically parallelizes independent steps based on the dependency graph:
+
+1. Validates the pipeline manifest
+2. Resolves parameters (command-line overrides > config file > profile defaults > base defaults)
+3. Builds a dependency graph and checks for cycles
+4. Executes steps in parallel where possible
+5. Handles failures according to trigger rules
+6. Writes results and status to the output directory
 
 ## Workspace Layout
 
-Without `-o`, `input_dir` doubles as the workspace root and outputs are created inside it. With `-o output_dir`, `input_dir` is treated as read-only raw data and all outputs go under `output_dir`. The output structure is:
+Without `-o`, the input directory becomes the workspace. With `-o output_dir`, inputs stay read-only and outputs go to a separate location:
 
 ```
 {workspace}/
-├── out_{TASKID}/        # persisted results, logs/, status.json, config.json
-└── tmp_{TASKID}/        # cleaned up unless --debug
+├── out_{TASKID}/        # Results, logs, status.json, config.json
+└── tmp_{TASKID}/        # Temporary files (cleaned unless --debug)
 ```
-
-Steps see `WORKSPACE_DIR` (the workspace root) for cross-task coordination such as locks.
 
 ## Pipeline Registry
 
-Pipelines can be registered for name-based lookup:
+Register pipelines for convenient name-based execution:
 
 ```bash
 flowrs register ./my_pipeline --name mypipe
 flowrs run mypipe -i /data -t run001
+flowrs list                      # View registered pipelines
 flowrs unregister mypipe
 ```
 
@@ -411,19 +460,13 @@ Registry is stored at `~/.flowrs/registry.toml`.
 
 ## License
 
-FlowRs uses RSA-2048 digital signatures for license enforcement with clock-tamper resistance.
+FlowRs requires a valid license to run. Licenses are machine-bound and expire after a set period.
 
 ```bash
-flowrs license status            # show current license
-flowrs license add customer.license   # install to ~/.flowrs/license.json
-flowrs license fingerprint       # machine fingerprint for license requests
+flowrs license status              # Check current license status
+flowrs license add customer.license # Install a license file
+flowrs license fingerprint         # Get machine fingerprint for license requests
 ```
-
-**Clock-tamper resistance:**
-- Queries NTP servers for authoritative time when reachable
-- Caches the NTP offset for 24 h so repeated runs don't re-query
-- Maintains a monotonic last-seen timestamp at `~/.flowrs/.last_seen` to detect rollback
-- 60-second drift tolerance avoids false positives
 
 License search paths (in order):
 1. `./flowrs.license`
@@ -431,7 +474,7 @@ License search paths (in order):
 3. `/etc/flowrs/license.json`
 4. `~/.flowrs/license.json`
 
-A valid license is required to run FlowRs. Contact your administrator to request one; use `flowrs license fingerprint` to obtain the machine fingerprint needed for the request.
+Contact your administrator to request a license. You'll need your machine fingerprint from `flowrs license fingerprint`.
 
 ## Support
 
