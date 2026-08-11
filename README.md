@@ -313,7 +313,7 @@ Each scaffold bundles a stdlib copied into the pipeline directory:
 - Execution: `exec_cmd`, `exec_cmd_silent`, `exec_with_retry`
 - File utils: `get_fastq_prefix`, `list_r1_files`, `count_reads`
 - Time: `timestr`, `elapsed_time`, `benchmark`
-- Locking: `acquire_lock`, `release_lock`, `with_lock`, `list_locks`, `force_unlock` (see [docs/stdlib-locking.md](docs/stdlib-locking.md))
+- Locking: `acquire_lock`, `release_lock`, `with_lock`, `list_locks`, `force_unlock` (see [docs/STDLIB_REFERENCE.md](docs/STDLIB_REFERENCE.md#locking-bash))
 
 **Python (`stdlib/python/flowrs.py`):**
 
@@ -345,7 +345,7 @@ FlowRs uses an exit-code-based error model with automatic retry policies and per
 
 ### Defining Error Codes
 
-Each `[[errors]]` entry declares a unique `exit_code` in the range 1–99. Exit code 0 and codes 100–255 are reserved for the engine (100–125 for engine built-ins including the timeout sentinel 124 → `TIMEOUT`, plus 126–255), so the manifest fails validation if an author reuses them or duplicates an `exit_code`.
+Each `[[errors]]` entry declares a unique `exit_code` in the range 1–63. Everything from 64 up belongs to FlowRs itself — 64/70/77 for the CLI's own bad-input, runtime, and license failures, 100–125 for engine built-ins including the timeout sentinel 124 → `TIMEOUT`, 126/127 for exec failures, and 128+N for signal termination. The manifest fails validation if an author claims a reserved code or duplicates an `exit_code`, which keeps a declared pipeline error always distinguishable from a FlowRs failure.
 
 ```toml
 [[errors]]
