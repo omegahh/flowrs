@@ -1,0 +1,685 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Manifest",
+  "description": "The complete pipeline manifest parsed from manifest.toml.",
+  "type": "object",
+  "required": [
+    "pipeline"
+  ],
+  "properties": {
+    "constraints": {
+      "description": "Cross-parameter constraints",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/Constraint"
+      }
+    },
+    "defaults": {
+      "description": "Default values applied to all steps unless overridden.",
+      "allOf": [
+        {
+          "$ref": "#/definitions/StepDefaults"
+        }
+      ]
+    },
+    "errors": {
+      "description": "Pipeline-specific error definitions",
+      "type": "array",
+      "items": {
+        "$ref": "#/definitions/ErrorDefinition"
+      }
+    },
+    "groups": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/GroupDef"
+      }
+    },
+    "params": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/ParamDef"
+      }
+    },
+    "pipeline": {
+      "$ref": "#/definitions/PipelineMeta"
+    },
+    "steps": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/definitions/StepDef"
+      }
+    }
+  },
+  "definitions": {
+    "Constraint": {
+      "description": "A cross-parameter constraint.",
+      "type": "object",
+      "required": [
+        "message",
+        "require",
+        "when"
+      ],
+      "properties": {
+        "message": {
+          "description": "Error message shown when constraint is violated",
+          "type": "string"
+        },
+        "require": {
+          "description": "Required expression (e.g., \"SHARE_MEM == false\")",
+          "type": "string"
+        },
+        "when": {
+          "description": "Condition expression (e.g., \"LIMIT_MEM > 0\")",
+          "type": "string"
+        }
+      }
+    },
+    "ErrorDefinition": {
+      "description": "Pipeline-specific error definition.",
+      "type": "object",
+      "required": [
+        "category",
+        "code",
+        "exit_code",
+        "message",
+        "severity"
+      ],
+      "properties": {
+        "category": {
+          "description": "Free-form label for grouping failures across runs, e.g. `quality`, `network`.\n\nDeliberately unconstrained and never interpreted: nothing in the engine branches on it, so a fixed vocabulary would only reject labels a vendor's dashboard finds useful.",
+          "type": "string"
+        },
+        "code": {
+          "description": "Unique error code (uppercase, underscore-separated)",
+          "type": "string"
+        },
+        "exit_code": {
+          "description": "Process exit code that signals this error (author band: 1..=63, unique). A step exits with this code to report the error; the engine maps it back.",
+          "type": "integer",
+          "format": "uint8",
+          "minimum": 0.0
+        },
+        "help_url": {
+          "description": "External URL for documentation/troubleshooting",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "max_retries": {
+          "description": "Max retries for this error type (overrides step-level retries)",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "message": {
+          "description": "Human-readable message (static; no runtime placeholders)",
+          "type": "string"
+        },
+        "retryable": {
+          "description": "Should the step be retried on this error?",
+          "default": false,
+          "type": "boolean"
+        },
+        "severity": {
+          "description": "Severity level",
+          "allOf": [
+            {
+              "$ref": "#/definitions/ErrorSeverity"
+            }
+          ]
+        }
+      }
+    },
+    "ErrorSeverity": {
+      "description": "Error severity level.",
+      "oneOf": [
+        {
+          "description": "Informational, does not affect execution",
+          "type": "string",
+          "enum": [
+            "info"
+          ]
+        },
+        {
+          "description": "Potential issue, execution continues",
+          "type": "string",
+          "enum": [
+            "warning"
+          ]
+        },
+        {
+          "description": "Error condition, step fails but pipeline may continue",
+          "type": "string",
+          "enum": [
+            "error"
+          ]
+        },
+        {
+          "description": "Critical failure, pipeline stops immediately",
+          "type": "string",
+          "enum": [
+            "fatal"
+          ]
+        }
+      ]
+    },
+    "GroupDef": {
+      "description": "Parameter group definition for UI organization.",
+      "type": "object",
+      "required": [
+        "title"
+      ],
+      "properties": {
+        "order": {
+          "default": 0,
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "title": {
+          "type": "string"
+        }
+      }
+    },
+    "ParamDef": {
+      "description": "A parameter definition from the manifest.",
+      "type": "object",
+      "required": [
+        "type"
+      ],
+      "properties": {
+        "description": {
+          "description": "Human description",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "enum_labels": {
+          "description": "Labels for enum values",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "exclusive_max": {
+          "description": "Exclusive maximum",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "exclusive_min": {
+          "description": "Exclusive minimum",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "group": {
+          "description": "Parameter group (references [groups.*])",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "label": {
+          "description": "Display label",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "max": {
+          "description": "Inclusive maximum",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "min": {
+          "description": "Inclusive minimum",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "readonly": {
+          "description": "If true, user cannot override via -p or -c. Value is resolved normally (base default → profile override).",
+          "default": false,
+          "type": "boolean"
+        },
+        "step": {
+          "description": "UI step size",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "type": {
+          "description": "Parameter type",
+          "allOf": [
+            {
+              "$ref": "#/definitions/ParamType"
+            }
+          ]
+        },
+        "visible": {
+          "description": "Whether visible in UI (default: true)",
+          "type": [
+            "boolean",
+            "null"
+          ]
+        }
+      }
+    },
+    "ParamType": {
+      "description": "Supported parameter types.",
+      "type": "string",
+      "enum": [
+        "integer",
+        "number",
+        "string",
+        "boolean"
+      ]
+    },
+    "PipelineHooks": {
+      "description": "Lifecycle hooks for pipeline execution.",
+      "type": "object",
+      "properties": {
+        "on_error": {
+          "description": "Per-error-code hooks: error_code -> [scripts]",
+          "default": {},
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "on_failure": {
+          "description": "Scripts to run after any step fails",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "on_start": {
+          "description": "Scripts to run before any steps execute",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "on_success": {
+          "description": "Scripts to run after all steps complete successfully",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "PipelineMeta": {
+      "description": "Pipeline identity and metadata.",
+      "type": "object",
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "author": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "hooks": {
+          "description": "Lifecycle hooks",
+          "allOf": [
+            {
+              "$ref": "#/definitions/PipelineHooks"
+            }
+          ]
+        },
+        "license": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "min_threads": {
+          "description": "Minimum number of threads required to run this pipeline.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "name": {
+          "type": "string"
+        },
+        "profile": {
+          "description": "Pipeline-defined profile for profile-specific parameter defaults.",
+          "anyOf": [
+            {
+              "$ref": "#/definitions/Profile"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requires": {
+          "description": "External tools and libraries the pipeline's steps invoke.\n\nAdvisory metadata: declaring a requirement does not install it, and nothing is checked during a run. `flowrs inspect --check-environment` reports what is missing, on the machine that will actually execute the steps. Activating whatever provides them — a module system, a conda environment, a container — stays the operator's job; FlowRs only inherits `PATH`.",
+          "default": {},
+          "allOf": [
+            {
+              "$ref": "#/definitions/Requirements"
+            }
+          ]
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "Profile": {
+      "description": "A pipeline-defined profile that drives profile-specific parameter defaults.\n\nThe profile references a param (which should have `enum` values defined), provides a detector script for auto-detection, and maps values to profiles.",
+      "type": "object",
+      "required": [
+        "detector",
+        "param"
+      ],
+      "properties": {
+        "detector": {
+          "description": "Detector script path relative to `bin/` directory.",
+          "type": "string"
+        },
+        "param": {
+          "description": "Name of the parameter that acts as profile (must exist in `[params]`).",
+          "type": "string"
+        },
+        "profiles": {
+          "description": "Maps profile names to their member values. e.g., `{ \"ngs\": [\"SINGLE\", \"PAIRED\"], \"tgs\": [\"TGSONT\", \"TGSPACBIO\"] }`",
+          "default": {},
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        },
+        "timeout": {
+          "description": "Maximum seconds to wait for the detector script before failing. Defaults to `DEFAULT_DETECTOR_TIMEOUT_SECS`. Set higher for detectors that scan large datasets or access slow/remote filesystems.",
+          "default": 60,
+          "type": "integer",
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "Requirements": {
+      "description": "External tools and libraries a pipeline needs, grouped by how presence is established.\n\nThree groups rather than one list with a `type` field: each is probed by a different mechanism (a `PATH` lookup, an interpreter import, a loader query), and the TOML reads as the sections a pipeline author already thinks in.\n\nVersions are deliberately absent. A constraint is only worth writing down if it can be checked, and there is no portable way to ask an arbitrary bioinformatics tool its version — `samtools --version`, `bwa` with no argument, and `fastqc --version` disagree on both the flag and the format. Recording constraints that are never enforced would be worse than recording none: it reads as a guarantee. Presence is what FlowRs can honestly check, so presence is what the schema expresses.",
+      "type": "object",
+      "properties": {
+        "python": {
+          "description": "Python modules that must import, e.g. `[\"numpy\", \"pysam\"]`.\n\nImport names, not distribution names: `Bio`, not `biopython`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "r": {
+          "description": "R packages that must load, e.g. `[\"ggplot2\", \"dplyr\"]`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tools": {
+          "description": "Executables that must resolve on `PATH`, e.g. `[\"samtools\", \"bwa\"]`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "StepDef": {
+      "description": "A single step in the pipeline workflow.",
+      "type": "object",
+      "required": [
+        "exec",
+        "label"
+      ],
+      "properties": {
+        "depends_on": {
+          "description": "Step names that must complete before this step",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "exec": {
+          "description": "Executable filename relative to pipeline's steps/ directory",
+          "type": "string"
+        },
+        "label": {
+          "description": "Human-readable label for this step",
+          "type": "string"
+        },
+        "outputs": {
+          "description": "Expected output files this step should produce (optional). Paths must use allowed variables: ${OUT_DIR}, ${WORK_DIR}, ${TMP_DIR}, ${DBG_DIR}. If declared, FlowRs will check these files exist after step completion. Missing required outputs convert a successful exit (0) into a failure.",
+          "default": null,
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "string"
+          }
+        },
+        "retries": {
+          "description": "Number of retry attempts on failure (0 = no retries).",
+          "default": null,
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "retry_delay": {
+          "description": "Delay in seconds between retry attempts.",
+          "default": null,
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "shared": {
+          "description": "If true, executable lives in a shared location rather than the pipeline's steps/",
+          "default": false,
+          "type": "boolean"
+        },
+        "teardown": {
+          "description": "If true, this step runs after the main pipeline completes (success or failure).",
+          "default": false,
+          "type": "boolean"
+        },
+        "threads": {
+          "description": "Thread allocation: \"auto\" (use CLI value) or fixed number.",
+          "allOf": [
+            {
+              "$ref": "#/definitions/ThreadAllocation"
+            }
+          ]
+        },
+        "timeout": {
+          "description": "Optional timeout in seconds. Step is killed if it exceeds this duration.",
+          "default": null,
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "trigger_rule": {
+          "description": "Trigger rule determining when this step should execute",
+          "default": "all_success",
+          "allOf": [
+            {
+              "$ref": "#/definitions/TriggerRule"
+            }
+          ]
+        }
+      }
+    },
+    "StepDefaults": {
+      "description": "Default values applied to all steps unless overridden at the step level.",
+      "type": "object",
+      "properties": {
+        "retries": {
+          "description": "Default number of retry attempts for all steps.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0.0
+        },
+        "retry_delay": {
+          "description": "Default delay in seconds between retry attempts.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        },
+        "timeout": {
+          "description": "Default timeout in seconds for all steps.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0.0
+        }
+      }
+    },
+    "ThreadAllocation": {
+      "description": "Thread allocation: the string \"auto\" to use the CLI-provided thread count, or a fixed thread count.",
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "auto"
+        },
+        {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 0.0
+        }
+      ]
+    },
+    "TriggerRule": {
+      "description": "Trigger rule determining when a step should execute.",
+      "oneOf": [
+        {
+          "description": "All upstream tasks must succeed (default)",
+          "type": "string",
+          "enum": [
+            "all_success"
+          ]
+        },
+        {
+          "description": "All upstream tasks must fail",
+          "type": "string",
+          "enum": [
+            "all_failed"
+          ]
+        },
+        {
+          "description": "All upstream tasks must complete (any state)",
+          "type": "string",
+          "enum": [
+            "all_done"
+          ]
+        },
+        {
+          "description": "At least one upstream task must succeed",
+          "type": "string",
+          "enum": [
+            "one_success"
+          ]
+        },
+        {
+          "description": "At least one upstream task must fail",
+          "type": "string",
+          "enum": [
+            "one_failed"
+          ]
+        },
+        {
+          "description": "No upstream tasks failed (success or skipped OK)",
+          "type": "string",
+          "enum": [
+            "none_failed"
+          ]
+        },
+        {
+          "description": "No failures and at least one success",
+          "type": "string",
+          "enum": [
+            "none_failed_min_one_success"
+          ]
+        },
+        {
+          "description": "No upstream tasks were skipped",
+          "type": "string",
+          "enum": [
+            "none_skipped"
+          ]
+        },
+        {
+          "description": "Always execute regardless of upstream states",
+          "type": "string",
+          "enum": [
+            "always"
+          ]
+        }
+      ]
+    }
+  }
+}
