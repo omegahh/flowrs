@@ -4,6 +4,8 @@
 
 FlowRs is a general-purpose pipeline orchestration system that executes DAG-based workflows defined in TOML manifests. It features parallel step execution, cooperative signal handling, typed parameter resolution with profile-aware defaults, and a bundled standard library for bash, Python, R, and C++ scripts. Originally designed for bioinformatics workflows, FlowRs is suitable for any computational pipeline requiring reproducible, parallel execution.
 
+A pipeline is a directory of plain text and scripts, and every failure mode has a code. That makes FlowRs a good target for **automated authoring** — by a code generator, a CI template, or an LLM agent. See [Machine-Friendly by Design](#machine-friendly-by-design).
+
 ## Features
 
 - ✅ **DAG-based execution** — automatic parallelization of independent steps
@@ -18,7 +20,8 @@ FlowRs is a general-purpose pipeline orchestration system that executes DAG-base
 - ✅ **Scaffold system** — `flowrs create` bundles a stdlib into each pipeline
 - ✅ **License system** — RSA-2048 signatures with NTP-backed clock-tamper detection
 - ✅ **Registry** — name-based pipeline lookup at `~/.flowrs/registry.toml`
-- ✅ **Machine-readable output** — JSON/YAML output for CI/CD integration
+- ✅ **Declared outputs** — a step that exits 0 without writing them fails as `MISSING_OUTPUT`
+- ✅ **Machine-readable output** — JSON/YAML from `run`, `list`, and `inspect`; published JSON Schema for `manifest.toml`
 - ✅ **Shell completions** — bash, zsh, and fish completions included
 - ✅ **Resume support** — pick up failed pipelines with version safety checks
 - ✅ **Dry-run mode** — preview the execution plan without running
@@ -120,6 +123,7 @@ exec = "align.sh"
 label = "Alignment"
 depends_on = ["qc"]
 threads = 8                  # fixed; or "auto" to inherit --threads
+outputs = ["${OUT_DIR}/aligned.bam"]   # missing after exit 0 → MISSING_OUTPUT failure
 
 [steps.analyze]
 exec = "analyze.py"
@@ -288,7 +292,7 @@ flowrs license fingerprint        Show machine fingerprint for license requests
 
 ### Machine-Readable Output
 
-The `list` and `inspect` commands support `--format` for structured output:
+The `run`, `list`, and `inspect` commands support `--format` for structured output:
 
 ```bash
 # Get pipeline info as JSON
@@ -299,7 +303,65 @@ flowrs list --detailed --format yaml
 
 # Check if a pipeline exists programmatically
 flowrs list --format json | jq -r '.pipelines[] | select(.name=="mypipe") | .exists'
+
+# Run and consume the result: per-step status, exit codes, and durations
+flowrs run my_pipeline -i ./data -t task001 --format json | jq '.steps[] | select(.status=="failed")'
 ```
+
+## Machine-Friendly by Design
+
+A FlowRs pipeline is a directory of TOML and scripts with no build step and no runtime graph
+construction, so writing one is a file-authoring task. Several properties make that tractable for
+a program — a code generator, a CI template, or an LLM agent — rather than only for a human:
+
+**Mistakes fail loudly, not silently.** The manifest uses `deny_unknown_fields`, so an invented
+field like `dependencies = [...]` instead of `depends_on` is a hard error naming the offending
+key, not a setting that is quietly ignored. Combined with the DAG cycle check and the
+"executable exists" check, `flowrs compile` is a single command that either accepts a generated
+pipeline or explains what is wrong with it.
+
+**A schema constrains generation up front.** `schema/manifest-v1.json` is generated from the Rust
+types, so it never drifts from what the parser accepts. Point an editor or a
+constrained-generation library at it:
+
+```
+https://raw.githubusercontent.com/omegahh/flowrs/main/schema/manifest-v1.json
+```
+
+**Every outcome is structured.** `flowrs run --format json` emits per-step status, exit codes, and
+durations; the same data lands in `<out>/status.json`, along with a `resolved_error` object for
+each failure. Nothing has to be recovered by scraping log text.
+
+**Failures are classified, not just reported.** Exit codes 1–63 belong to the pipeline author's
+own `[[errors]]` taxonomy, so a step can report `LOW_COVERAGE` rather than "exit 1", and the code
+survives into `status.json`. The engine reserves its own band — `120` `MISSING_OUTPUT`, `124`
+`TIMEOUT`, `126`/`127` exec failures, `128+N` signals — and the CLI uses `64` (bad input), `70`
+(runtime), `77` (license). Because the bands are disjoint, an exit code alone distinguishes "the
+tool refused" from "the pipeline reported a domain error".
+
+**Silent success is detectable.** Declaring `outputs` on a step converts "exited 0 but wrote
+nothing" into a real failure with the `MISSING_OUTPUT` code. This is the failure mode automated
+authoring hits most: a script whose logic is wrong but whose exit status is clean.
+
+**Plans are inspectable before they run.** `--dry-run` resolves parameters, detects the profile,
+and prints the execution layers without executing anything, so a generated pipeline can be
+checked for shape before it touches data. `flowrs inspect --format json` gives the same
+structure for an existing pipeline.
+
+A practical authoring loop:
+
+```bash
+flowrs create my_pipeline              # scaffold with a stdlib and a working example
+# ... generate manifest.toml and steps/ ...
+flowrs compile ./my_pipeline           # validate: schema, DAG, script presence
+flowrs run ./my_pipeline -i ./data -t smoke001 --dry-run
+flowrs run ./my_pipeline -i ./data -t smoke001 --format json
+```
+
+Two current rough edges, to be clear about what is not yet structured: `--dry-run` prints text
+only, and manifest validation errors are human-readable prose rather than machine-parseable
+diagnostics. Both are surfaced on stderr with a distinguishing exit code (`64`), so a caller can
+tell *that* validation failed and show the message, but not enumerate the failures as data.
 
 ## Standard Library
 
@@ -395,6 +457,8 @@ flowrs_error("LOW_COVERAGE")
 
 The engine resolves unmapped exit codes to built-in, fatal errors that flow through the same path (so OOM/timeout/signal kills are catchable via `on_error`):
 
+- `120` → `MISSING_OUTPUT` (step exited 0 without writing its declared `outputs`)
+- `124` → `TIMEOUT`
 - `126` → `NOT_EXECUTABLE`
 - `127` → `COMMAND_NOT_FOUND`
 - `128+N` → signal errors (`SIGINT`=130, `SIGABRT`=134, `SIGKILL`=137, `SIGSEGV`=139, `SIGTERM`=143; generic `SIGNAL` otherwise)
