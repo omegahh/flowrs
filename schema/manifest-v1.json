@@ -351,6 +351,14 @@
             "null"
           ]
         },
+        "cache_dir": {
+          "description": "Directory name, relative to `WORK_DIR`, holding results shared across runs.\n\nRequired for any step that sets `cache = true`. Declared once at the pipeline level rather than per step so every cached step lands in one place a user can inspect or delete, and so the name is a property of the pipeline rather than a detail repeated at each use.",
+          "default": null,
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "description": {
           "type": [
             "string",
@@ -441,6 +449,11 @@
           "type": "integer",
           "format": "uint64",
           "minimum": 0.0
+        },
+        "unassigned_ok": {
+          "description": "Permit enum values of the profile param that belong to no profile.\n\nBy default every enum value must be assigned to exactly one profile: a value in none is detectable but selects no profile, so the run silently uses base defaults for every profile-specific param — the author's `[params.X.ngs]` blocks simply do not apply, with nothing saying so.\n\nSet this when that is intended, e.g. a value handled entirely by base defaults. It relaxes the manifest check only; detection of an unassigned value still **warns** at run time, naming the value and the fallback. The escape hatch is for authors who accept the behaviour, not a way to silence the report of it.",
+          "default": false,
+          "type": "boolean"
         }
       }
     },
@@ -480,6 +493,19 @@
         "label"
       ],
       "properties": {
+        "cache": {
+          "description": "Reuse this step's results across runs when its inputs are unchanged.\n\nA cached step writes to `${CACHE_DIR}`, a directory keyed by everything that can change its output (see `cache_key`). When a run finds a completed entry for that key it skips the step and downstream steps read the existing results.",
+          "default": false,
+          "type": "boolean"
+        },
+        "cache_key": {
+          "description": "Parameters whose values are part of this step's cache identity.\n\nOnly these participate — deliberately not every resolved param. Hashing all of them would invalidate a QC step because an unrelated downstream threshold changed, which defeats the point of caching. Declaring the list is the author's statement of what this step actually reads.\n\nThe step's executable content and the identity of its cached upstreams are always included, so editing a script or invalidating an upstream invalidates this step without anything being declared here.",
+          "default": [],
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
         "depends_on": {
           "description": "Step names that must complete before this step",
           "default": [],
@@ -497,7 +523,7 @@
           "type": "string"
         },
         "outputs": {
-          "description": "Expected output files this step should produce (optional). Paths must use allowed variables: ${OUT_DIR}, ${WORK_DIR}, ${TMP_DIR}, ${DBG_DIR}. If declared, FlowRs will check these files exist after step completion. Missing required outputs convert a successful exit (0) into a failure.",
+          "description": "Expected output files this step should produce (optional). Paths must use allowed variables: ${OUT_DIR}, ${WORK_DIR}, ${TMP_DIR}, and ${CACHE_DIR} for a cached step. If declared, FlowRs will check these files exist after step completion. Missing required outputs convert a successful exit (0) into a failure.",
           "default": null,
           "type": [
             "array",
