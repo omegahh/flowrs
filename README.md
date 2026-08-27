@@ -23,6 +23,7 @@ A pipeline is a directory of plain text and scripts, and every failure mode has 
 - ✅ **Declared outputs** — a step that exits 0 without writing them fails as `MISSING_OUTPUT`
 - ✅ **Machine-readable output** — JSON/YAML from `run`, `list`, and `inspect`; published JSON Schema for `manifest.toml`
 - ✅ **Shell completions** — bash, zsh, and fish completions included
+- ✅ **Cross-run cache** — steps keyed on their inputs reuse results across runs
 - ✅ **Resume support** — pick up failed pipelines with version safety checks
 - ✅ **Dry-run mode** — preview the execution plan without running
 
@@ -72,10 +73,10 @@ flowrs create my_pipeline
 flowrs inspect ./my_pipeline
 
 # Run it
-flowrs run ./my_pipeline -i /path/to/input -t task001
+flowrs run ./my_pipeline -i /path/to/input -w /path/to/work -t task001
 
-# Dry run (show execution plan without running)
-flowrs run ./my_pipeline -i /path/to/input -t task001 --dry-run
+# Inspect the plan without running (steps, layers, params, tool presence)
+flowrs inspect ./my_pipeline --check-environment
 ```
 
 ## Pipeline Structure
@@ -177,14 +178,14 @@ Scripts use the bundled stdlib for common operations.
 ```bash
 #!/usr/bin/env bash
 set -euo pipefail
-source "${PIPELINE_DIR}/stdlib/bash/flowrs.sh"
+# The stdlib helpers need no sourcing: the engine exports BASH_ENV.
 
 log_info "Starting QC step"
 
 threads=$(get_config_int "THREADS" "8")
 min_quality=$(get_config_int "MIN_QUALITY" "20")
 
-require_file "${RAW_DIR}/sample.fastq.gz" "Input FASTQ"
+require_file "${INPUT_DIR}/sample.fastq.gz" "Input FASTQ"
 require_command "fastp" "fastp tool"
 
 exec_cmd "fastp -i input.fq -o output.fq -w ${threads} -q ${min_quality}" "fastp.log"
@@ -241,7 +242,7 @@ int main(int argc, char** argv) {
     flowrs::Logger log(ctx.log_dir / "qc.log");
 
     auto threads = flowrs::get_config<int>("THREADS", 8);
-    flowrs::require_file(ctx.raw_dir / "sample.fastq.gz", "Input FASTQ");
+    flowrs::require_file(ctx.input_dir / "sample.fastq.gz", "Input FASTQ");
 
     log.info("QC completed");
     return 0;
@@ -258,19 +259,20 @@ Compile flags: `-std=c++17 -Istdlib/cpp -Istdlib/cpp/vendor -lz`. Vendored heade
 -v, --verbose                    Increase verbosity (repeatable: -v, -vv)
 
 # Pipeline execution
-flowrs run <PIPELINE> -i DIR -t TASK [OPTIONS]
-    -i, --input <DIR>            Input directory
-    -t, --task <ID>              Task ID (3-64 chars, [A-Za-z0-9_-])
-    -o, --output <DIR>           Optional separate output dir (input becomes read-only raw data)
+flowrs run <PIPELINE> -i DIR -w DIR [OPTIONS]
+    -i, --input-dir <DIR>        Input directory (read-only; never written to)
+    -w, --work-dir <DIR>         Workspace: everything the run writes goes here
+    -t, --task-id <ID>           Optional task ID (3-64 chars, [A-Za-z0-9_-]). Given:
+                                 outputs go to WORK_DIR/TASK_ID/, so several runs can
+                                 share a workspace. Omitted: outputs go to WORK_DIR/
     -c, --config <FILE>          Config file: JSON, TOML, or KEY=VALUE (.env style); detected by extension
     -p, --param <KEY=VALUE>      Inline param override; repeatable
-    -j, --threads <N>            Threads available for execution (default: CPU count)
+    -@, --threads <N>            Thread budget shared by all concurrent work (default: CPU count)
     -s, --start-step <STEP>      Start from a specific step
     -e, --end-step <STEP>        End at a specific step
     -k, --skip-steps <STEP>...   Skip specific steps
-    --dry-run                    Plan the run and print the steps without executing them
-    --debug                      Keep intermediate files: DBG_DIR points at OUT_DIR and
-                                 tmp_<TASKID>/ is not cleaned up
+    --keep-tmp                   Keep temporary files after the run completes
+    --tmp-dir <PATH>             Override the base temporary directory location
 
 # Pipeline management
 flowrs create <NAME> [-d DESC] [--update]
@@ -292,7 +294,9 @@ flowrs license fingerprint        Show machine fingerprint for license requests
 
 ### Machine-Readable Output
 
-The `run`, `list`, and `inspect` commands support `--format` for structured output:
+The `list` and `inspect` commands support `--format` for structured output. `run` has no
+`--format`: it writes `status.json` incrementally as the run proceeds, which is a strictly
+better record than a single dump on exit.
 
 ```bash
 # Get pipeline info as JSON
@@ -304,8 +308,9 @@ flowrs list --detailed --format yaml
 # Check if a pipeline exists programmatically
 flowrs list --format json | jq -r '.pipelines[] | select(.name=="mypipe") | .exists'
 
-# Run and consume the result: per-step status, exit codes, and durations
-flowrs run my_pipeline -i ./data -t task001 --format json | jq '.steps[] | select(.status=="failed")'
+# Run, then consume status.json: per-step status, exit codes, and durations
+flowrs run my_pipeline -i ./data -w ./work -t task001
+jq '.steps[] | select(.status=="failed")' ./work/task001/status.json
 ```
 
 ## Machine-Friendly by Design
@@ -328,25 +333,27 @@ constrained-generation library at it:
 https://raw.githubusercontent.com/omegahh/flowrs/main/schema/manifest-v1.json
 ```
 
-**Every outcome is structured.** `flowrs run --format json` emits per-step status, exit codes, and
-durations; the same data lands in `<out>/status.json`, along with a `resolved_error` object for
-each failure. Nothing has to be recovered by scraping log text.
+**Every outcome is structured.** `<out>/status.json` carries per-step status, exit codes, and
+durations, along with a `resolved_error` object for each failure, and is rewritten after every
+state transition so a watcher can poll it mid-run. Nothing has to be recovered by scraping log
+text.
 
 **Failures are classified, not just reported.** Exit codes 1–63 belong to the pipeline author's
 own `[[errors]]` taxonomy, so a step can report `LOW_COVERAGE` rather than "exit 1", and the code
 survives into `status.json`. The engine reserves its own band — `120` `MISSING_OUTPUT`, `124`
-`TIMEOUT`, `126`/`127` exec failures, `128+N` signals — and the CLI uses `64` (bad input), `70`
-(runtime), `77` (license). Because the bands are disjoint, an exit code alone distinguishes "the
-tool refused" from "the pipeline reported a domain error".
+`TIMEOUT`, `126`/`127` exec failures, `128+N` signals — and the CLI uses `64` (bad invocation),
+`65` (malformed input), `70` (runtime), `77` (license), `78` (bad manifest). Because the bands are
+disjoint, an exit code alone distinguishes "the tool refused" from "the pipeline reported a domain
+error", and among the CLI's own codes it says which of them to go fix.
 
 **Silent success is detectable.** Declaring `outputs` on a step converts "exited 0 but wrote
 nothing" into a real failure with the `MISSING_OUTPUT` code. This is the failure mode automated
 authoring hits most: a script whose logic is wrong but whose exit status is clean.
 
-**Plans are inspectable before they run.** `--dry-run` resolves parameters, detects the profile,
-and prints the execution layers without executing anything, so a generated pipeline can be
-checked for shape before it touches data. `flowrs inspect --format json` gives the same
-structure for an existing pipeline.
+**Plans are inspectable before they run.** `flowrs inspect` prints steps, execution layers,
+trigger rules, declared parameters, and constraints without executing anything, so a generated
+pipeline can be checked for shape before it touches data. `--format json` gives the same
+structure as data, and `--check-environment` additionally verifies the required tools resolve.
 
 A practical authoring loop:
 
@@ -354,28 +361,31 @@ A practical authoring loop:
 flowrs create my_pipeline              # scaffold with a stdlib and a working example
 # ... generate manifest.toml and steps/ ...
 flowrs compile ./my_pipeline           # validate: schema, DAG, script presence
-flowrs run ./my_pipeline -i ./data -t smoke001 --dry-run
-flowrs run ./my_pipeline -i ./data -t smoke001 --format json
+flowrs inspect ./my_pipeline --check-environment   # steps, layers, params, tool presence
+flowrs run ./my_pipeline -i ./data -w ./work -t smoke001
 ```
 
-Two current rough edges, to be clear about what is not yet structured: `--dry-run` prints text
-only, and manifest validation errors are human-readable prose rather than machine-parseable
-diagnostics. Both are surfaced on stderr with a distinguishing exit code (`64`), so a caller can
-tell *that* validation failed and show the message, but not enumerate the failures as data.
+One current rough edge, to be clear about what is not yet structured: manifest validation errors
+are human-readable prose rather than machine-parseable diagnostics. They are surfaced on stderr
+with a distinguishing exit code (`78` for a bad manifest, `64` for a bad invocation), so a caller
+can tell *that* validation failed and show the message, but not enumerate the failures as data.
+
+There is also no invocation-specific preview: nothing reports which steps `-s`/`-e` would select
+or what `-p`/`-c` resolve to. `flowrs inspect` answers the static half.
 
 ## Standard Library
 
 Each scaffold bundles a stdlib copied into the pipeline directory:
 
-**Bash (`stdlib/bash/flowrs.sh`):**
+**Bash (`stdlib/bash/flowrs.sh`)** — available without sourcing; the engine points `BASH_ENV` at it:
 
 - Logging: `log_info`, `log_warn`, `log_error`, `log_success`, `log_debug`, `die`
 - Validation: `require_file`, `require_dir`, `require_var`, `require_command`
 - Config: `get_config`, `get_config_int`, `get_config_bool`
 - Execution: `exec_cmd`, `exec_cmd_silent`, `exec_with_retry`
-- File utils: `get_fastq_prefix`, `list_r1_files`, `count_reads`
+- File utils: `get_fastq_prefix` (pairing key — R1 and R2 give the same value),
+  `list_r1_files`, `count_reads`
 - Time: `timestr`, `elapsed_time`, `benchmark`
-- Locking: `acquire_lock`, `release_lock`, `with_lock`, `list_locks`, `force_unlock` (see [docs/STDLIB_REFERENCE.md](docs/STDLIB_REFERENCE.md#locking-bash))
 
 **Python (`stdlib/python/flowrs.py`):**
 
@@ -392,6 +402,7 @@ Each scaffold bundles a stdlib copied into the pipeline directory:
 - Validation functions
 - `get_config()` with type casting
 - Smart I/O: `load_file()`, `save_file()`, `save_plot()`
+- `get_fastq_prefix()` — pairing key, vectorized over a file list
 - Time utilities
 
 **C++ (`stdlib/cpp/flowrs.hpp`, header-only):**
@@ -407,7 +418,7 @@ FlowRs uses an exit-code-based error model with automatic retry policies and per
 
 ### Defining Error Codes
 
-Each `[[errors]]` entry declares a unique `exit_code` in the range 1–63. Everything from 64 up belongs to FlowRs itself — 64/70/77 for the CLI's own bad-input, runtime, and license failures, 100–125 for engine built-ins including the timeout sentinel 124 → `TIMEOUT`, 126/127 for exec failures, and 128+N for signal termination. The manifest fails validation if an author claims a reserved code or duplicates an `exit_code`, which keeps a declared pipeline error always distinguishable from a FlowRs failure.
+Each `[[errors]]` entry declares a unique `exit_code` in the range 1–63. Everything from 64 up belongs to FlowRs itself — 64/65/70/77/78 for the CLI's own bad-invocation, malformed-input, runtime, license, and bad-manifest failures, 100–125 for engine built-ins including the timeout sentinel 124 → `TIMEOUT`, 126/127 for exec failures, and 128+N for signal termination. The manifest fails validation if an author claims a reserved code or duplicates an `exit_code`, which keeps a declared pipeline error always distinguishable from a FlowRs failure.
 
 ```toml
 [[errors]]
@@ -501,13 +512,35 @@ FlowRs automatically parallelizes independent steps based on the dependency grap
 
 ## Workspace Layout
 
-Without `-o`, the input directory becomes the workspace. With `-o output_dir`, inputs stay read-only and outputs go to a separate location:
+`-i` is read-only input; `-w` is the workspace, and everything the run writes lives inside
+it. FlowRs refuses to run if `-w` is inside `-i`.
 
 ```
-{workspace}/
-├── out_{TASKID}/        # Results, logs, status.json, config.json
-└── tmp_{TASKID}/        # Temporary files (cleaned unless --debug)
+{work_dir}/              # -w, with no -t: one run per workspace
+├── logs/                # One log per step
+├── status.json          # Machine-readable run status
+├── params.json          # Parameters this run actually used
+└── tmp/                 # Unique temporary directories (removed unless --keep-tmp)
 ```
+
+With `-t`, each run gets its own subdirectory so several can share a workspace:
+
+```
+{work_dir}/
+├── {task_id}/           # Same contents as above, per run
+└── {other_task_id}/
+```
+
+A run claims its output directory for its duration, so a second run writing to the same place
+fails immediately instead of interleaving outputs. The claim records which host and PID holds it,
+so a collision says who — and a claim left behind by a killed run is reported as stale, with the
+file to remove.
+
+A pipeline may also declare a `cache_dir` under the workspace: one flat pool that steps marked
+`cache = true` share across runs, keyed on their declared parameters, their script contents, and
+their cached upstreams. Every step can read it through `$CACHE_DIR`; concurrent runs coordinate
+through per-step deadline markers, so two runs starting cold produce one copy of the work. See
+[Cached steps](docs/MANIFEST_REFERENCE.md#cached-steps).
 
 ## Pipeline Registry
 
@@ -515,12 +548,19 @@ Register pipelines for convenient name-based execution:
 
 ```bash
 flowrs register ./my_pipeline --name mypipe
-flowrs run mypipe -i /data -t run001
+flowrs run mypipe -i /data -w ./work -t run001
 flowrs list                      # View registered pipelines
 flowrs unregister mypipe
 ```
 
 Registry is stored at `~/.flowrs/registry.toml`.
+
+A `.flowpkg` is **copied** into `~/.flowrs/packages/`, named by the digest of its bytes, so a
+registered name keeps working after the original file moves and cannot silently change meaning
+when a package is rebuilt at the same path. Identical bytes registered twice deduplicate to one
+file, and `unregister` removes the stored copy only once no other name references it. A directory
+is registered by reference instead — someone iterating on a pipeline needs the registry pointing
+at their working tree, so `unregister` never touches it.
 
 ## License
 
