@@ -157,18 +157,19 @@
       "description": "Parameter group definition for UI organization.",
       "type": "object",
       "properties": {
+        "description": {
+          "description": "Prose explaining what the group contains.",
+          "type": "string"
+        },
         "order": {
           "type": "integer",
           "format": "uint32",
           "default": 0,
           "minimum": 0
-        },
-        "title": {
-          "type": "string"
         }
       },
       "required": [
-        "title"
+        "description"
       ]
     },
     "ParamDef": {
@@ -210,13 +211,6 @@
         },
         "group": {
           "description": "Parameter group (references [groups.*])",
-          "type": [
-            "string",
-            "null"
-          ]
-        },
-        "label": {
-          "description": "Display label",
           "type": [
             "string",
             "null"
