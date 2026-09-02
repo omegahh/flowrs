@@ -443,25 +443,27 @@ Messages are static — there is no `{placeholder}` interpolation.
 
 ### Reporting Errors
 
-A step reports an error by calling the stdlib `flowrs_error("CODE")`, which looks up the code in the `FLOWRS_ERROR_MAP` env var (injected by the engine) and exits with the declared exit code. The engine maps the child's exit code back to the `[[errors]]` definition, records a `resolved_error` in `status.json`, drives retry (`retryable`/`max_retries`), and fires `on_error[CODE]` hooks.
+A step reports an error by calling the stdlib `die("CODE")`, which looks up the code in the `FLOWRS_ERROR_MAP` env var (injected by the engine) and exits with the declared exit code. The engine maps the child's exit code back to the `[[errors]]` definition, records a `resolved_error` in `status.json`, drives retry (`retryable`/`max_retries`), and fires `on_error[CODE]` hooks.
+
+`die` has two forms, told apart by that lookup: a first argument found in the map is an error code (the optional second argument is the message), and otherwise it is the message itself (the optional second argument is the exit code, default 1).
 
 **Bash:**
 
 ```bash
-flowrs_error "NO_INPUT_DATA"
+die "NO_INPUT_DATA"
 ```
 
 **Python:**
 
 ```python
-from flowrs import flowrs_error
-flowrs_error("NETWORK_TIMEOUT")
+from flowrs import die
+die("NETWORK_TIMEOUT")
 ```
 
 **R:**
 
 ```r
-flowrs_error("LOW_COVERAGE")
+die("LOW_COVERAGE")
 ```
 
 ### Built-in Errors
