@@ -80,7 +80,7 @@
           "type": "string"
         },
         "code": {
-          "description": "Unique error code (uppercase, underscore-separated)",
+          "description": "Unique error code. `A-Z`, `0-9` and `_` only: the stdlib resolves a code by looking\nthis name up verbatim in `FLOWRS_ERROR_MAP`, so any other character would be\nunreachable from `die`. Enforced in `validate::errors`.",
           "type": "string"
         },
         "exit_code": {
