@@ -197,11 +197,7 @@ log_success "QC completed"
 
 ```python
 #!/usr/bin/env python3
-import sys
-from pathlib import Path
-sys.path.insert(0, str(Path(__file__).parent.parent / "stdlib" / "python"))
-
-from flowrs import Context, Logger, get_config, require_file
+from flowrs import Context, Logger, get_config, require_file   # PYTHONPATH is already set
 
 ctx = Context.from_env()
 
@@ -216,8 +212,7 @@ with Logger(ctx.log_dir / "analyze.log") as log:
 
 ```r
 #!/usr/bin/env Rscript
-script_dir <- dirname(sys.frame(1)$ofile)
-source(file.path(script_dir, "..", "stdlib", "r", "flowrs.R"))
+source(file.path(Sys.getenv("PIPELINE_DIR"), "stdlib", "r", "flowrs.R"))
 
 log_info("Starting visualization")
 threads <- get_config("THREADS", default = 8, cast = as.integer)
@@ -365,13 +360,47 @@ flowrs inspect ./my_pipeline --check-environment   # steps, layers, params, tool
 flowrs run ./my_pipeline -i ./data -w ./work -t smoke001
 ```
 
-One current rough edge, to be clear about what is not yet structured: manifest validation errors
-are human-readable prose rather than machine-parseable diagnostics. They are surfaced on stderr
-with a distinguishing exit code (`78` for a bad manifest, `64` for a bad invocation), so a caller
-can tell *that* validation failed and show the message, but not enumerate the failures as data.
+**Validation failures are structured.** `flowrs compile --format json` reports each problem as data
+— a stable machine code and a dotted path into `manifest.toml` — so the write → validate → fix loop
+closes without parsing prose. Every structural problem is reported in one run, the way a compiler
+does, so fixing a manifest is one edit rather than a round trip per mistake:
 
-There is also no invocation-specific preview: nothing reports which steps `-s`/`-e` would select
-or what `-p`/`-c` resolve to. `flowrs inspect` answers the static half.
+```json
+{
+  "ok": false,
+  "exit_code": 78,
+  "diagnostics": [
+    {
+      "code": "unknown_dependency",
+      "field": "steps.aling.depends_on",
+      "ref": "trimm",
+      "message": "Step 'aling' depends on 'trimm', which does not exist. …",
+      "hint": "declared steps are: aling, qc"
+    },
+    {
+      "code": "retry_limit_exceeded",
+      "field": "steps.qc.retries",
+      "ref": "200",
+      "message": "Step 'qc' retry count 200 exceeds maximum of 10",
+      "hint": "the maximum is 10"
+    }
+  ]
+}
+```
+
+`code` is the contract; `message` and `hint` are advisory and may be reworded. Adding the flag never
+changes stderr: the human prose is identical with or without it, every finding included, and stdout
+stays empty without it. `inspect` accepts the same flag.
+
+`compile` checks everything knowable from the manifest text, including dependency cycles and every
+declared `default` against its own type, `enum`, and bounds. What it cannot check is a value that
+came from outside the manifest — a `-p`/`-c` override, or a constraint needing resolved values —
+which `run` reports as prose, since `status.json` is `run`'s machine-readable record. See
+[Machine-readable diagnostics](docs/01-writing-a-pipeline.md#machine-readable-diagnostics) for the
+full code table.
+
+One rough edge remains: there is no invocation-specific preview. Nothing reports which steps
+`-s`/`-e` would select or what `-p`/`-c` resolve to. `flowrs inspect` answers the static half.
 
 ## Standard Library
 
@@ -496,8 +525,11 @@ NETWORK_TIMEOUT = ["retry_with_backoff.sh"]
 
 Hooks receive environment variables:
 
-- `on_failure`: `FAILED_STEP`, `EXIT_CODE`
-- `on_error`: `ERROR_CODE`, plus the resolved error's `exit_code`
+- `on_failure`: `FAILED_STEP` and `EXIT_CODE`, each exported only when known — a failure during
+  parameter resolution has no step to name, so the variable is absent rather than set to a
+  placeholder a hook would have to recognize.
+- `on_error`: `ERROR_CODE`, and nothing else. It holds the error's **name** (`NO_INPUT_DATA`), not
+  a number — the hook was keyed on that name to begin with. Read the exit code from `status.json`.
 
 All hooks run to completion even if one fails, ensuring cleanup and notifications always execute.
 
@@ -542,7 +574,7 @@ A pipeline may also declare a `cache_dir` under the workspace: one flat pool tha
 `cache = true` share across runs, keyed on their declared parameters, their script contents, and
 their cached upstreams. Every step can read it through `$CACHE_DIR`; concurrent runs coordinate
 through per-step deadline markers, so two runs starting cold produce one copy of the work. See
-[Cached steps](docs/MANIFEST_REFERENCE.md#cached-steps).
+[Caching](docs/01-writing-a-pipeline.md#caching) in §7 Running.
 
 ## Pipeline Registry
 
