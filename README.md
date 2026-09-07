@@ -21,7 +21,7 @@ A pipeline is a directory of plain text and scripts, and every failure mode has 
 - ✅ **License system** — RSA-2048 signatures with NTP-backed clock-tamper detection
 - ✅ **Registry** — name-based pipeline lookup at `~/.flowrs/registry.toml`
 - ✅ **Declared outputs** — a step that exits 0 without writing them fails as `MISSING_OUTPUT`
-- ✅ **Machine-readable output** — JSON from `run`, `list`, and `inspect`; published JSON Schema for `manifest.toml`
+- ✅ **Machine-readable output** — JSON from `run`, `registry list`, and `inspect`; published JSON Schema for `manifest.toml`
 - ✅ **Shell completions** — bash, zsh, and fish completions included
 - ✅ **Cross-run cache** — steps keyed on their inputs reuse results across runs
 - ✅ **Resume support** — pick up failed pipelines with version safety checks
@@ -276,9 +276,11 @@ flowrs compile <DIR> [--check] [-o OUT] [--encrypt] [--author NAME]
                                   Validate and optionally package/encrypt a pipeline into .flowpkg
 flowrs inspect <PIPELINE> [--json]
                                   Display steps, DAG, params, constraints, errors, hooks
-flowrs register <PATH> [--name N] Register a pipeline for name-based lookup
-flowrs unregister <NAME>          Remove a registered pipeline
-flowrs list [--detailed] [--json] List registered pipelines
+flowrs registry add <PATH> [--name N]
+                                  Register a pipeline for name-based lookup
+flowrs registry remove <NAME>     Remove a registered pipeline
+flowrs registry list [--detailed] [--json]
+                                  List registered pipelines
 
 # License management
 flowrs license status [-f FILE]   Show license status with cryptographic validation
@@ -288,7 +290,7 @@ flowrs license fingerprint        Show machine fingerprint for license requests
 
 ### Machine-Readable Output
 
-The `list` and `inspect` commands support `--json` for structured output. `run` has no `--json`:
+The `registry list` and `inspect` commands support `--json` for structured output. `run` has no `--json`:
 it writes `status.json` incrementally as the run proceeds, which is a strictly better record
 than a single dump on exit.
 
@@ -297,10 +299,10 @@ than a single dump on exit.
 flowrs inspect my_pipeline --json | jq '.steps'
 
 # List registered pipelines with their paths, as JSON
-flowrs list --detailed --json
+flowrs registry list --detailed --json
 
 # Check if a pipeline exists programmatically
-flowrs list --json | jq -r '.pipelines[] | select(.name=="mypipe") | .exists'
+flowrs registry list --json | jq -r '.pipelines[] | select(.name=="mypipe") | .exists'
 
 # Run, then consume status.json: per-step status, exit codes, and durations
 flowrs run my_pipeline -i ./data -w ./work -t task001
@@ -580,10 +582,10 @@ through per-step deadline markers, so two runs starting cold produce one copy of
 Register pipelines for convenient name-based execution:
 
 ```bash
-flowrs register ./my_pipeline --name mypipe
+flowrs registry add ./my_pipeline --name mypipe
 flowrs run mypipe -i /data -w ./work -t run001
-flowrs list                      # View registered pipelines
-flowrs unregister mypipe
+flowrs registry list             # View registered pipelines
+flowrs registry remove mypipe
 ```
 
 Registry is stored at `~/.flowrs/registry.toml`.
@@ -591,9 +593,9 @@ Registry is stored at `~/.flowrs/registry.toml`.
 A `.flowpkg` is **copied** into `~/.flowrs/packages/`, named by the digest of its bytes, so a
 registered name keeps working after the original file moves and cannot silently change meaning
 when a package is rebuilt at the same path. Identical bytes registered twice deduplicate to one
-file, and `unregister` removes the stored copy only once no other name references it. A directory
-is registered by reference instead — someone iterating on a pipeline needs the registry pointing
-at their working tree, so `unregister` never touches it.
+file, and `registry remove` removes the stored copy only once no other name references it. A
+directory is registered by reference instead — someone iterating on a pipeline needs the registry
+pointing at their working tree, so `registry remove` never touches it.
 
 ## License
 
