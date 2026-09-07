@@ -21,7 +21,7 @@ A pipeline is a directory of plain text and scripts, and every failure mode has 
 - ✅ **License system** — RSA-2048 signatures with NTP-backed clock-tamper detection
 - ✅ **Registry** — name-based pipeline lookup at `~/.flowrs/registry.toml`
 - ✅ **Declared outputs** — a step that exits 0 without writing them fails as `MISSING_OUTPUT`
-- ✅ **Machine-readable output** — JSON/YAML from `run`, `list`, and `inspect`; published JSON Schema for `manifest.toml`
+- ✅ **Machine-readable output** — JSON from `run`, `list`, and `inspect`; published JSON Schema for `manifest.toml`
 - ✅ **Shell completions** — bash, zsh, and fish completions included
 - ✅ **Cross-run cache** — steps keyed on their inputs reuse results across runs
 - ✅ **Resume support** — pick up failed pipelines with version safety checks
@@ -274,12 +274,11 @@ flowrs create <NAME> [-d DESC] [--update]
                                   Scaffold a new pipeline (or update its bundled stdlib)
 flowrs compile <DIR> [--check] [-o OUT] [--encrypt] [--author NAME]
                                   Validate and optionally package/encrypt a pipeline into .flowpkg
-flowrs inspect <PIPELINE> [--format FORMAT]
+flowrs inspect <PIPELINE> [--json]
                                   Display steps, DAG, params, constraints, errors, hooks
 flowrs register <PATH> [--name N] Register a pipeline for name-based lookup
 flowrs unregister <NAME>          Remove a registered pipeline
-flowrs list [--detailed] [--format FORMAT]
-                                  List registered pipelines
+flowrs list [--detailed] [--json] List registered pipelines
 
 # License management
 flowrs license status [-f FILE]   Show license status with cryptographic validation
@@ -289,19 +288,19 @@ flowrs license fingerprint        Show machine fingerprint for license requests
 
 ### Machine-Readable Output
 
-The `list` and `inspect` commands support `--format` for structured output. `run` has no
-`--format`: it writes `status.json` incrementally as the run proceeds, which is a strictly
-better record than a single dump on exit.
+The `list` and `inspect` commands support `--json` for structured output. `run` has no `--json`:
+it writes `status.json` incrementally as the run proceeds, which is a strictly better record
+than a single dump on exit.
 
 ```bash
 # Get pipeline info as JSON
-flowrs inspect my_pipeline --format json | jq '.steps'
+flowrs inspect my_pipeline --json | jq '.steps'
 
-# List registered pipelines as YAML
-flowrs list --detailed --format yaml
+# List registered pipelines with their paths, as JSON
+flowrs list --detailed --json
 
 # Check if a pipeline exists programmatically
-flowrs list --format json | jq -r '.pipelines[] | select(.name=="mypipe") | .exists'
+flowrs list --json | jq -r '.pipelines[] | select(.name=="mypipe") | .exists'
 
 # Run, then consume status.json: per-step status, exit codes, and durations
 flowrs run my_pipeline -i ./data -w ./work -t task001
@@ -347,7 +346,7 @@ authoring hits most: a script whose logic is wrong but whose exit status is clea
 
 **Plans are inspectable before they run.** `flowrs inspect` prints steps, execution layers,
 trigger rules, declared parameters, and constraints without executing anything, so a generated
-pipeline can be checked for shape before it touches data. `--format json` gives the same
+pipeline can be checked for shape before it touches data. `--json` gives the same
 structure as data, and `--check-environment` additionally verifies the required tools resolve.
 
 A practical authoring loop:
@@ -360,7 +359,7 @@ flowrs inspect ./my_pipeline --check-environment   # steps, layers, params, tool
 flowrs run ./my_pipeline -i ./data -w ./work -t smoke001
 ```
 
-**Validation failures are structured.** `flowrs compile --format json` reports each problem as data
+**Validation failures are structured.** `flowrs compile --json` reports each problem as data
 — a stable machine code and a dotted path into `manifest.toml` — so the write → validate → fix loop
 closes without parsing prose. Every structural problem is reported in one run, the way a compiler
 does, so fixing a manifest is one edit rather than a round trip per mistake:
