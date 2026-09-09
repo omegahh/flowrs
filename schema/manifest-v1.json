@@ -272,11 +272,11 @@
       ]
     },
     "PipelineHooks": {
-      "description": "Lifecycle hooks for pipeline execution.",
+      "description": "Lifecycle hooks for pipeline execution.\n\n**Four hooks, because an author asks four questions.** Each is a side-channel reaction: never\nsubject to `-s`/`-e`/`-k`, never in `status.json`'s step map, and its failure warns and never\nfails the run — no exceptions. Work whose success is part of what the run delivers is a *step*\n(a DAG step, or `teardown = true`), where failure semantics and targeting are available. System\ncleanup on cancellation is the engine's, guaranteed by the signal handler and the Drop chain, and\nis neither.\n\n`deny_unknown_fields` so a removed or misspelled hook name is a parse error. A silently ignored\n`on_finish` would drop the author's close-out work without saying so.",
       "type": "object",
       "properties": {
         "on_error": {
-          "description": "Per-error-code hooks: error_code -> [scripts]",
+          "description": "A step failed with a specific resolved error: `error_code -> [scripts]`.\n\nPurely a failure response — a cancelled step bypasses it, because the operator stopping the\nrun is not a fault.",
           "type": "object",
           "additionalProperties": {
             "type": "array",
@@ -287,7 +287,7 @@
           "default": {}
         },
         "on_failure": {
-          "description": "Scripts to run after any step fails",
+          "description": "The run did not succeed, however it ended badly — step failure, teardown delivery failure,\nor the operator's cancellation.\n\nA cancelled run's `128 + N` reaches the script as `EXIT_CODE`, alongside `FAILED_STEP` and\n`status.json`'s `cancelled_by`, so one script branches on the outcome.",
           "type": "array",
           "default": [],
           "items": {
@@ -295,7 +295,7 @@
           }
         },
         "on_start": {
-          "description": "Scripts to run before any steps execute",
+          "description": "Announce that the run exists: fired once the pipeline is unpacked, before parameter\nresolution and the profile detector.\n\nEarliest point at which the hook scripts are readable — for a package they are inside the\nencrypted payload — so it is also the earliest a hook can fire at all. A \"run started\"\nnotification sent from a DAG step would be silent for a run that died in resolution.\n\nSees the engine-provided paths but **not** resolved params: resolution has not run yet.",
           "type": "array",
           "default": [],
           "items": {
@@ -303,14 +303,15 @@
           }
         },
         "on_success": {
-          "description": "Scripts to run after all steps complete successfully",
+          "description": "The run completed successfully.",
           "type": "array",
           "default": [],
           "items": {
             "type": "string"
           }
         }
-      }
+      },
+      "additionalProperties": false
     },
     "PipelineMeta": {
       "description": "Pipeline identity and metadata.",
@@ -516,11 +517,6 @@
           "default": null,
           "minimum": 0
         },
-        "shared": {
-          "description": "If true, executable lives in a shared location rather than the pipeline's steps/",
-          "type": "boolean",
-          "default": false
-        },
         "teardown": {
           "description": "If true, this step runs after the main pipeline completes (success or failure).",
           "type": "boolean",
@@ -529,6 +525,16 @@
         "threads": {
           "description": "Thread allocation: \"auto\" (use CLI value) or fixed number.",
           "$ref": "#/$defs/ThreadAllocation"
+        },
+        "threads_weight": {
+          "description": "Relative share of the budget among `\"auto\"` steps ready in the same scheduling pass.\n\nA ratio, not a thread count: weights are meaningful only against the other members of the\ncohort, so they scale with `-@` rather than pinning a number. Two ready steps weighted 3 and\n1 split what is available 3:1 — six and two threads under `-@ 8`, three and one under `-@ 4`.\n\nAbsent means 1, which is the equal split that has always been the behaviour. A weight\ntherefore only has an effect when two or more `\"auto\"` steps are ready together and at least\none of them declares something other than 1.\n\nContradictory with a fixed `threads`, and rejected as such: a fixed cost already states the\nexact number of permits the step wants, leaving no share to divide.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "default": null,
+          "minimum": 0
         },
         "timeout": {
           "description": "Optional timeout in seconds. Step is killed if it exceeds this duration.",
@@ -585,7 +591,7 @@
       }
     },
     "ThreadAllocation": {
-      "description": "Thread allocation: the string \"auto\" to use the CLI-provided thread count, or a fixed thread count.",
+      "description": "Thread allocation: the string \"auto\" to use the CLI-provided thread count, or a fixed thread count of at least 1.",
       "anyOf": [
         {
           "type": "string",
@@ -594,7 +600,7 @@
         {
           "type": "integer",
           "format": "uint32",
-          "minimum": 0
+          "minimum": 1
         }
       ]
     },
