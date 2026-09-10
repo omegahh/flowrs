@@ -190,7 +190,7 @@ require_command "fastp" "fastp tool"
 
 exec_cmd "fastp -i input.fq -o output.fq -w ${threads} -q ${min_quality}" "fastp.log"
 
-log_success "QC completed"
+log_info "QC completed"
 ```
 
 **Python:**
@@ -201,11 +201,11 @@ from flowrs import Context, Logger, get_config, require_file   # PYTHONPATH is a
 
 ctx = Context.from_env()
 
-with Logger(ctx.log_dir / "analyze.log") as log:
-    log.info("Starting analysis")
-    threads = get_config("THREADS", default=8, cast=int)
-    require_file(ctx.out_dir / "alignments.bam", "BAM file")
-    log.success("Analysis completed")
+log = Logger()
+log.info("Starting analysis")
+threads = get_config("THREADS", default=8, cast=int)
+require_file(ctx.out_dir / "alignments.bam", "BAM file")
+log.info("Analysis completed")
 ```
 
 **R:**
@@ -223,7 +223,7 @@ library(ggplot2)
 p <- ggplot(data, aes(x, y)) + geom_point()
 save_plot(p, file.path(OUT_DIR, "plot.pdf"))
 
-log_success("Visualization completed")
+log_info("Visualization completed")
 ```
 
 **C++:**
@@ -409,7 +409,8 @@ Each scaffold bundles a stdlib copied into the pipeline directory:
 
 **Bash (`stdlib/bash/flowrs.sh`)** — available without sourcing; the engine points `BASH_ENV` at it:
 
-- Logging: `log_info`, `log_warn`, `log_error`, `log_success`, `log_debug`, `die`
+- Logging: `log_info`, `log_warn`, `log_debug`, `log_trace`, and `die` — the only way to report
+  an error, because an error must end the step
 - Validation: `require_file`, `require_dir`, `require_var`, `require_command`
 - Config: `get_config`, `get_config_int`, `get_config_bool`
 - Execution: `exec_cmd`, `exec_cmd_silent`, `exec_with_retry`
