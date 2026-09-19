@@ -183,6 +183,13 @@
             "null"
           ]
         },
+        "detector": {
+          "description": "Script under `bin/` that computes this parameter's value at run time, when nothing supplied\none.\n\nDetection sits between a `-p`/`-c` override and the declared defaults: the invocation still\nwins, and a `default` beside this is the fallback for a detector that reports nothing. Several\nparameters may name one script — it is spawned once and reports each by name.\n\nAn **explicit** field rather than something `profile_overrides` catches: `#[serde(flatten)]`\nbelow would otherwise swallow `detector = \"x.sh\"` as a profile named `detector`.\n\nNot available inside `[params.<name>.<profile>]`: every detector runs before any profile is\nknown, so a per-profile detector could never be selected. [`ProfileOverride`] omits it and\n`validate::params` says so rather than letting serde drop it silently.\n\nHow long one may run is `[pipeline] detector_timeout`, not a field here — several parameters\nmay name one script, and one spawn cannot honour two numbers.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
         "enum_labels": {
           "description": "Labels for enum values",
           "type": [
@@ -337,6 +344,13 @@
             "null"
           ]
         },
+        "detector_timeout": {
+          "description": "Seconds to wait for any one detector script before failing the run.\n\nPipeline-level rather than per parameter because a detector is named by the *parameter* it\nanswers for, and several parameters may name one script. A timeout on the parameter would\nthen need a `max()` reconciliation to decide what the single spawn gets — one number that no\ndeclaration asked for. Declared once, it applies to each detector's own execution.\n\nDefaults to [`DEFAULT_DETECTOR_TIMEOUT_SECS`]. Raise it for detectors that scan large\ndatasets or reach a slow shared filesystem.",
+          "type": "integer",
+          "format": "uint64",
+          "default": 60,
+          "minimum": 0
+        },
         "hooks": {
           "description": "Lifecycle hooks",
           "$ref": "#/$defs/PipelineHooks"
@@ -359,17 +373,6 @@
         "name": {
           "type": "string"
         },
-        "profile": {
-          "description": "Pipeline-defined profile for profile-specific parameter defaults.",
-          "anyOf": [
-            {
-              "$ref": "#/$defs/Profile"
-            },
-            {
-              "type": "null"
-            }
-          ]
-        },
         "requires": {
           "description": "External tools and libraries the pipeline's steps invoke.\n\nAdvisory metadata: declaring a requirement does not install it, and nothing is\nchecked during a run. `flowrs inspect --check-environment` reports what is missing,\non the machine that will actually execute the steps. Activating whatever provides\nthem — a module system, a conda environment, a container — stays the operator's job;\nFlowRs only inherits `PATH`.",
           "$ref": "#/$defs/Requirements",
@@ -382,47 +385,6 @@
       "required": [
         "name",
         "version"
-      ]
-    },
-    "Profile": {
-      "description": "A pipeline-defined profile that drives profile-specific parameter defaults.\n\nThe profile references a param (which should have `enum` values defined),\nprovides a detector script for auto-detection, and maps values to profiles.",
-      "type": "object",
-      "properties": {
-        "detector": {
-          "description": "Detector script path relative to `bin/` directory.",
-          "type": "string"
-        },
-        "param": {
-          "description": "Name of the parameter that acts as profile (must exist in `[params]`).",
-          "type": "string"
-        },
-        "profiles": {
-          "description": "Maps profile names to their member values.\ne.g., `{ \"ngs\": [\"SINGLE\", \"PAIRED\"], \"tgs\": [\"TGSONT\", \"TGSPACBIO\"] }`",
-          "type": "object",
-          "additionalProperties": {
-            "type": "array",
-            "items": {
-              "type": "string"
-            }
-          },
-          "default": {}
-        },
-        "timeout": {
-          "description": "Maximum seconds to wait for the detector script before failing.\nDefaults to `DEFAULT_DETECTOR_TIMEOUT_SECS`. Set higher for detectors that\nscan large datasets or access slow/remote filesystems.",
-          "type": "integer",
-          "format": "uint64",
-          "default": 60,
-          "minimum": 0
-        },
-        "unassigned_ok": {
-          "description": "Permit enum values of the profile param that belong to no profile.\n\nBy default every enum value must be assigned to exactly one profile: a value in none is\ndetectable but selects no profile, so the run silently uses base defaults for every\nprofile-specific param — the author's `[params.X.ngs]` blocks simply do not apply, with\nnothing saying so.\n\nSet this when that is intended, e.g. a value handled entirely by base defaults. It\nrelaxes the manifest check only; detection of an unassigned value still **warns** at run\ntime, naming the value and the fallback. The escape hatch is for authors who accept the\nbehaviour, not a way to silence the report of it.",
-          "type": "boolean",
-          "default": false
-        }
-      },
-      "required": [
-        "param",
-        "detector"
       ]
     },
     "Requirements": {
