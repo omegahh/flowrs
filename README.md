@@ -106,15 +106,6 @@ name = "my_pipeline"
 version = "1.0"
 min_threads = 4   # optional: refuse to run with fewer
 
-# Pipeline-defined profile drives profile-specific param defaults
-[pipeline.profile]
-param = "SEQTYPE"
-detector = "detect_seqtype.sh"   # script in bin/
-
-[pipeline.profile.profiles]
-ngs = ["PAIRED", "SINGLE"]
-tgs = ["TGSONT"]
-
 [steps.qc]
 exec = "qc.sh"
 label = "Quality control"
@@ -132,10 +123,16 @@ label = "Statistical analysis"
 depends_on = ["align"]
 trigger_rule = "all_success" # default; see Trigger Rules below
 
+# A detector works this out from the input, and its categories key the defaults below
 [params.SEQTYPE]
 type = "string"
 default = "PAIRED"
 enum = ["PAIRED", "SINGLE", "TGSONT"]
+detector = "detect_seqtype.sh"   # script in bin/
+
+[params.SEQTYPE.profiles]
+ngs = ["PAIRED", "SINGLE"]
+tgs = ["TGSONT"]
 
 [params.threads]
 type = "integer"
