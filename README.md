@@ -18,7 +18,7 @@ A pipeline is a directory of plain text and scripts, and every failure mode has 
 - ✅ **Multi-language stdlib** — bash, Python, R, and C++ (header-only)
 - ✅ **Signal handling** — graceful cancellation with process-group cleanup
 - ✅ **Scaffold system** — `flowrs create` bundles a stdlib into each pipeline
-- ✅ **License system** — RSA-2048 signatures with NTP-backed clock-tamper detection
+- ✅ **License system** — RSA-2048 signatures, machine-bound, with a dated expiry
 - ✅ **Registry** — name-based pipeline lookup at `~/.flowrs/registry.toml`
 - ✅ **Declared outputs** — a step that exits 0 without writing them fails as `MISSING_OUTPUT`
 - ✅ **Machine-readable output** — JSON from `run`, `registry list`, and `inspect`; published JSON Schema for `manifest.toml`
