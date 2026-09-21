@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Manifest",
-  "description": "The complete pipeline manifest parsed from manifest.toml.",
+  "description": "The complete pipeline manifest parsed from manifest.toml.\n\nAn unrecognized field is a parse error, here and in every section with a fixed field list: serde\ndiscards one by default, so `retreies = 3` read as a step with no retries and said nothing. It is\nalso what makes [`diagnostics`]'s unknown-field hint reachable.",
   "type": "object",
   "properties": {
     "constraints": {
@@ -44,6 +44,7 @@
       }
     }
   },
+  "additionalProperties": false,
   "required": [
     "pipeline"
   ],
@@ -65,6 +66,7 @@
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "when",
         "require",
@@ -120,6 +122,7 @@
           "$ref": "#/$defs/ErrorSeverity"
         }
       },
+      "additionalProperties": false,
       "required": [
         "code",
         "exit_code",
@@ -168,6 +171,7 @@
           "minimum": 0
         }
       },
+      "additionalProperties": false,
       "required": [
         "description"
       ]
@@ -382,6 +386,7 @@
           "type": "string"
         }
       },
+      "additionalProperties": false,
       "required": [
         "name",
         "version"
@@ -416,7 +421,7 @@
       "additionalProperties": false
     },
     "StepDef": {
-      "description": "A single step in the pipeline workflow.",
+      "description": "A single step in the pipeline workflow.\n\nUnknown fields are refused, for the reason [`Manifest`](crate::manifest::Manifest) gives.",
       "type": "object",
       "properties": {
         "cache": {
@@ -514,6 +519,7 @@
           "default": "all_success"
         }
       },
+      "additionalProperties": false,
       "required": [
         "exec",
         "label"
@@ -550,7 +556,8 @@
           "format": "uint64",
           "minimum": 0
         }
-      }
+      },
+      "additionalProperties": false
     },
     "ThreadAllocation": {
       "description": "Thread allocation: the string \"auto\" to use the CLI-provided thread count, or a fixed thread count of at least 1.",
