@@ -1,6 +1,6 @@
 # FlowRs
 
-**Fast, safe workflow orchestration for computational pipelines**
+**Agent-ready workflow engine for computational pipelines**
 
 FlowRs is a general-purpose pipeline orchestration system that executes DAG-based workflows defined in TOML manifests. It features parallel step execution, cooperative signal handling, typed parameter resolution with profile-aware defaults, and a bundled standard library for bash, Python, R, and C++ scripts. Originally designed for bioinformatics workflows, FlowRs is suitable for any computational pipeline requiring reproducible, parallel execution.
 
