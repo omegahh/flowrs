@@ -588,7 +588,7 @@ flowrs registry remove mypipe
 
 Registry is stored at `~/.flowrs/registry.toml`.
 
-A `.flowpkg` is **copied** into `~/.flowrs/packages/`, named by the digest of its bytes, so a
+A `.flowpkg` is **copied** into `~/.flowrs/store/`, named by the digest of its bytes, so a
 registered name keeps working after the original file moves and cannot silently change meaning
 when a package is rebuilt at the same path. Identical bytes registered twice deduplicate to one
 file, and `registry remove` removes the stored copy only once no other name references it. A
