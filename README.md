@@ -209,7 +209,7 @@ log.info("Analysis completed")
 
 ```r
 #!/usr/bin/env Rscript
-source(file.path(Sys.getenv("PIPELINE_DIR"), "stdlib", "r", "flowrs.R"))
+# Nothing to source: the helpers are already loaded.
 
 log_info("Starting visualization")
 threads <- get_config("THREADS", default = 8, cast = as.integer)
