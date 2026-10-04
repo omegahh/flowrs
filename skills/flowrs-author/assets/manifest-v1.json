@@ -1,0 +1,771 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Manifest",
+  "description": "The complete pipeline manifest parsed from manifest.toml.\n\nAn unrecognized field is a parse error, here and in every section with a fixed field list: serde\ndiscards one by default, so `retreies = 3` read as a step with no retries and said nothing. It is\nalso what makes [`diagnostics`]'s unknown-field hint reachable.",
+  "type": "object",
+  "properties": {
+    "collections": {
+      "description": "The item sets a `scatter` step runs over, keyed by collection name.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/CollectionDef"
+      }
+    },
+    "constraints": {
+      "description": "Cross-parameter constraints",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/Constraint"
+      }
+    },
+    "defaults": {
+      "description": "Default values applied to all steps unless overridden.",
+      "$ref": "#/$defs/StepDefaults"
+    },
+    "errors": {
+      "description": "Pipeline-specific error definitions",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/ErrorDefinition"
+      }
+    },
+    "groups": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/GroupDef"
+      }
+    },
+    "params": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/ParamDef"
+      }
+    },
+    "pipeline": {
+      "$ref": "#/$defs/PipelineMeta"
+    },
+    "steps": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/StepDef"
+      }
+    }
+  },
+  "additionalProperties": false,
+  "required": [
+    "pipeline"
+  ],
+  "$defs": {
+    "CollectionDef": {
+      "description": "A deterministic set of items, loaded from one file.\n\nUnknown fields are refused, for the reason\n[`Manifest`](crate::manifest::Manifest) gives.",
+      "type": "object",
+      "properties": {
+        "format": {
+          "description": "`tsv`, `json`, or absent to infer from the file's extension.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CollectionFormat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id_column": {
+          "description": "Which column (TSV) or key (JSON) holds each item's id.",
+          "type": "string"
+        },
+        "source": {
+          "description": "The file the items are read from, relative to the input directory or absolute.\nOnly a leading `${INPUT_DIR}` expands; other engine variables are refused.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "id_column"
+      ]
+    },
+    "CollectionFormat": {
+      "description": "How a collection file is parsed.\n\nAn enum rather than a free string so the accepted set is closed at parse time, and so the\nschema `generate-schema` publishes is the same set `Deserialize` accepts.",
+      "oneOf": [
+        {
+          "description": "One header row naming the columns, then one row per item, tab-separated.",
+          "type": "string",
+          "const": "tsv"
+        },
+        {
+          "description": "A JSON array of objects, one per item.",
+          "type": "string",
+          "const": "json"
+        }
+      ]
+    },
+    "Constraint": {
+      "description": "A cross-parameter constraint.",
+      "type": "object",
+      "properties": {
+        "message": {
+          "description": "Error message shown when constraint is violated",
+          "type": "string"
+        },
+        "require": {
+          "description": "Required expression (e.g., \"SHARE_MEM == false\")",
+          "type": "string"
+        },
+        "when": {
+          "description": "Condition expression (e.g., \"LIMIT_MEM > 0\")",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "when",
+        "require",
+        "message"
+      ]
+    },
+    "ErrorDefinition": {
+      "description": "Pipeline-specific error definition.",
+      "type": "object",
+      "properties": {
+        "category": {
+          "description": "Free-form label for grouping failures across runs, e.g. `quality`, `network`.\n\nDeliberately unconstrained and never interpreted: nothing in the engine branches on\nit, so a fixed vocabulary would only reject labels a vendor's dashboard finds useful.",
+          "type": "string"
+        },
+        "code": {
+          "description": "Unique error code. `A-Z`, `0-9` and `_` only: the stdlib resolves a code by looking\nthis name up verbatim in `FLOWRS_ERROR_MAP`, so any other character would be\nunreachable from `die`. Enforced in `validate::errors`.",
+          "type": "string"
+        },
+        "exit_code": {
+          "description": "Process exit code that signals this error (author band: 1..=63, unique).\nA step exits with this code to report the error; the engine maps it back.",
+          "type": "integer",
+          "format": "uint8",
+          "maximum": 255,
+          "minimum": 0
+        },
+        "help_url": {
+          "description": "External URL for documentation/troubleshooting",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "max_retries": {
+          "description": "Max retries for this error type (overrides step-level retries)",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "message": {
+          "description": "Human-readable message (static; no runtime placeholders)",
+          "type": "string"
+        },
+        "retryable": {
+          "description": "Should the step be retried on this error?",
+          "type": "boolean",
+          "default": false
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "code",
+        "exit_code",
+        "category",
+        "message"
+      ]
+    },
+    "GroupDef": {
+      "description": "Parameter group definition for UI organization.",
+      "type": "object",
+      "properties": {
+        "description": {
+          "description": "Prose explaining what the group contains.",
+          "type": "string"
+        },
+        "order": {
+          "type": "integer",
+          "format": "uint32",
+          "default": 0,
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "description"
+      ]
+    },
+    "ParamDef": {
+      "description": "A parameter definition from the manifest.",
+      "type": "object",
+      "properties": {
+        "default": {
+          "description": "Base default value, used when no profile override supplies one.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ParamScalar"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "description": {
+          "description": "Human description",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "detector": {
+          "description": "Script under `bin/` that computes this parameter's value at run time, when nothing supplied\none.\n\nDetection sits between a `-p`/`-c` override and the declared defaults: the invocation still\nwins, and a `default` beside this is the fallback for a detector that reports nothing. Several\nparameters may name one script — it is spawned once and reports each by name.\n\nAn **explicit** field rather than something `profile_overrides` catches: `#[serde(flatten)]`\nbelow would otherwise swallow `detector = \"x.sh\"` as a profile named `detector`.\n\nNot available inside `[params.<name>.<profile>]`: every detector runs before any profile is\nknown, so a per-profile detector could never be selected. [`ProfileOverride`] omits it and\n`validate::params` says so rather than letting serde drop it silently.\n\nHow long one may run is `[pipeline] detector_timeout`, not a field here — several parameters\nmay name one script, and one spawn cannot honour two numbers.",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "enum": {
+          "description": "Allowed values",
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "$ref": "#/$defs/ParamScalar"
+          }
+        },
+        "exclusive_max": {
+          "description": "Exclusive maximum",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "exclusive_min": {
+          "description": "Exclusive minimum",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "group": {
+          "description": "Parameter group (references [groups.*])",
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "increment": {
+          "description": "Required increment for numeric values. Values are anchored at `min` when present, otherwise\nat zero: `min = 0, increment = 5` permits `0, 5, 10, ...`.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "max": {
+          "description": "Inclusive maximum",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "min": {
+          "description": "Inclusive minimum",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "profiles": {
+          "description": "Categories this parameter's value maps onto, each naming the values it covers.\n\n```toml\n[params.MODE.profiles]\nfast   = [\"FAST\"]\nnormal = [\"NORMAL\", \"SENSITIVE\"]\n```\n\n**At most one parameter per pipeline carries this**, and the category it yields keys every\n*other* parameter's `[params.<name>.<profile>]` default. A profile is therefore an attribute\nof the parameter that produces the category, not a pipeline-level block: the two mechanisms —\ncomputing a value ([`Self::detector`]) and classifying a run — are independent, and either may\nappear without the other.\n\nThe union of the value-sets must **equal** the parameter's domain: its `enum`, or\n`{true, false}` for a `boolean`. No value unassigned, none claimed twice. A parameter with no\nclosed domain cannot be profiled, since there would be nothing for the union to equal.\n\nMembers are [`toml::Value`] rather than `String` so a `boolean` parameter writes\n`fast = [false]` — the values it classifies, in the type it declared.\n\nAn **explicit** field for the same reason [`Self::detector`] is: `#[serde(flatten)]` below\nwould otherwise swallow the table as a profile override named `profiles`.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ParamScalar"
+            }
+          }
+        },
+        "readonly": {
+          "description": "If true, user cannot override via -p or -c.\nValue is resolved normally (base default → profile override).",
+          "type": "boolean",
+          "default": false
+        },
+        "type": {
+          "description": "Parameter type",
+          "$ref": "#/$defs/ParamType"
+        }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/ProfileOverride"
+      },
+      "required": [
+        "type"
+      ]
+    },
+    "ParamScalar": {
+      "type": [
+        "string",
+        "number",
+        "boolean"
+      ]
+    },
+    "ParamType": {
+      "description": "Supported parameter types.",
+      "type": "string",
+      "enum": [
+        "integer",
+        "number",
+        "string",
+        "boolean"
+      ]
+    },
+    "PipelineHooks": {
+      "description": "Lifecycle hooks for pipeline execution.\n\n**Four hooks, because an author asks four questions.** Each is a side-channel reaction: never\nsubject to `-s`/`-e`/`-k`, never in `status.json`'s step map, and its failure warns and never\nfails the run — no exceptions. Work whose success is part of what the run delivers is a *step*\n(a DAG step, or `teardown = true`), where failure semantics and targeting are available. System\ncleanup on cancellation is the engine's, guaranteed by the signal handler and the Drop chain, and\nis neither.\n\n`deny_unknown_fields` so a removed or misspelled hook name is a parse error. A silently ignored\n`on_finish` would drop the author's close-out work without saying so.",
+      "type": "object",
+      "properties": {
+        "on_error": {
+          "description": "A step failed with a specific resolved error: `error_code -> [scripts]`.\n\nPurely a failure response — a cancelled step bypasses it, because the operator stopping the\nrun is not a fault.",
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "default": {}
+        },
+        "on_failure": {
+          "description": "The run did not succeed, however it ended badly — step failure, teardown delivery failure,\nor the operator's cancellation.\n\nA cancelled run's `128 + N` reaches the script as `EXIT_CODE`, alongside `FAILED_STEP` and\n`status.json`'s `cancelled_by`, so one script branches on the outcome.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "on_start": {
+          "description": "Announce that the run exists: fired once the pipeline is unpacked, before parameter\nresolution and the profile detector.\n\nEarliest point at which the hook scripts are readable — for a package they are inside the\nencrypted payload — so it is also the earliest a hook can fire at all. A \"run started\"\nnotification sent from a DAG step would be silent for a run that died in resolution.\n\nSees the engine-provided paths but **not** resolved params: resolution has not run yet.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "on_success": {
+          "description": "The run completed successfully.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "PipelineMeta": {
+      "description": "Pipeline identity and metadata.",
+      "type": "object",
+      "properties": {
+        "author": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "cache_dir": {
+          "description": "Directory name, relative to `WORK_DIR`, holding results shared across runs.\n\nRequired for any step that sets `cache = true`. Declared once at the pipeline level\nrather than per step so every cached step lands in one place a user can inspect or\ndelete, and so the name is a property of the pipeline rather than a detail repeated\nat each use.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "default": null
+        },
+        "description": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "detector_timeout": {
+          "description": "Seconds to wait for any one detector script before failing the run.\n\nPipeline-level rather than per parameter because a detector is named by the *parameter* it\nanswers for, and several parameters may name one script. A timeout on the parameter would\nthen need a `max()` reconciliation to decide what the single spawn gets — one number that no\ndeclaration asked for. Declared once, it applies to each detector's own execution.\n\nDefaults to [`DEFAULT_DETECTOR_TIMEOUT_SECS`]. Raise it for detectors that scan large\ndatasets or reach a slow shared filesystem.",
+          "type": "integer",
+          "format": "uint64",
+          "default": 60,
+          "minimum": 0
+        },
+        "hooks": {
+          "description": "Lifecycle hooks",
+          "$ref": "#/$defs/PipelineHooks"
+        },
+        "license": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "min_threads": {
+          "description": "Minimum number of threads required to run this pipeline.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "name": {
+          "type": "string"
+        },
+        "requires": {
+          "description": "External tools and libraries the pipeline's steps invoke.\n\nAdvisory metadata: declaring a requirement does not install it, and nothing is\nchecked during a run. `flowrs inspect --check-environment` reports what is missing,\non the machine that will actually execute the steps. Activating whatever provides\nthem — a module system, a conda environment, a container — stays the operator's job;\nFlowRs only inherits `PATH`.",
+          "$ref": "#/$defs/Requirements",
+          "default": {}
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "name",
+        "version"
+      ]
+    },
+    "ProfileOverride": {
+      "description": "Profile-specific override for a parameter's default value and constraints.",
+      "type": "object",
+      "properties": {
+        "default": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ParamScalar"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "exclusive_max": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "exclusive_min": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "increment": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "max": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "min": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      },
+      "additionalProperties": false
+    },
+    "Requirements": {
+      "description": "External tools and libraries a pipeline needs, grouped by how presence is established.\n\nThree groups rather than one list with a `type` field: each is probed by a different\nmechanism (a `PATH` lookup, an interpreter import, a loader query), and the TOML reads as\nthe sections a pipeline author already thinks in.\n\nVersions are deliberately absent. A constraint is only worth writing down if it can be\nchecked, and there is no portable way to ask an arbitrary bioinformatics tool its version\n— `samtools --version`, `bwa` with no argument, and `fastqc --version` disagree on both\nthe flag and the format. Recording constraints that are never enforced would be worse\nthan recording none: it reads as a guarantee. Presence is what FlowRs can honestly check,\nso presence is what the schema expresses.",
+      "type": "object",
+      "properties": {
+        "python": {
+          "description": "Python modules that must import, e.g. `[\"numpy\", \"pysam\"]`.\n\nImport names, not distribution names: `Bio`, not `biopython`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "r": {
+          "description": "R packages that must load, e.g. `[\"ggplot2\", \"dplyr\"]`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tools": {
+          "description": "Executables that must resolve on `PATH`, e.g. `[\"samtools\", \"bwa\"]`.",
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "ScatterDef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "description": "How a step's execution is spread over a collection's items.\n\nAbsent means the step runs once. A `scatter` step runs once **per item**, in the item's own\ndirectory, with its own cache entry and its own log.\n\n`Deserialize` accepts both `scatter = \"samples\"` and `scatter = { collection = \"samples\" }`. The\ngenerated schema describes both forms. The table permits only `collection`.",
+          "type": "object",
+          "properties": {
+            "collection": {
+              "description": "The collection declared under `[collections.<name>]` whose items this step runs over.",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "collection"
+          ]
+        }
+      ]
+    },
+    "StepDef": {
+      "description": "A single step in the pipeline workflow.\n\nUnknown fields are refused, for the reason [`Manifest`](crate::manifest::Manifest) gives.",
+      "type": "object",
+      "properties": {
+        "cache": {
+          "description": "Reuse this step's results across runs when its inputs are unchanged.\n\nScalar results use the shared `${CACHE_DIR}`; scattered results use `${ITEM_DIR}` under\nthat root. Cache markers track the identity described by `cache_key`. A matching completed\nentry reuses the existing results without executing the step.",
+          "type": "boolean",
+          "default": false
+        },
+        "cache_key": {
+          "description": "Parameters whose values are part of this step's cache identity.\n\nOnly these participate — deliberately not every resolved param. Hashing all of them\nwould invalidate a QC step because an unrelated downstream threshold changed, which\ndefeats the point of caching. Declaring the list is the author's statement of what\nthis step actually reads.\n\nThe step's executable content and the identity of its cached upstreams are always\nincluded, so editing a script or invalidating an upstream invalidates this step\nwithout anything being declared here.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "depends_on": {
+          "description": "Step names that must complete before this step",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "exec": {
+          "description": "Executable filename relative to pipeline's steps/ directory",
+          "type": "string"
+        },
+        "gather": {
+          "description": "The scattered steps this step consumes the completed results of, as one batch.\n\nDistinct from `depends_on` because the cardinality differs: a gather step waits for\n*every* instance of the named steps, and receives a generated manifest describing them all\nrather than one upstream's outputs. A step naming both is a gather step that also has scalar\nprerequisites.\n\nA scattered step is never listed here — an instance consumes its upstream's matching\ninstance, which is what `depends_on` already expresses between two steps over the same\ncollection.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
+        "label": {
+          "description": "Human-readable label for this step",
+          "type": "string"
+        },
+        "outputs": {
+          "description": "Expected output files, checked after a successful exit.\nScalar paths may be absolute or use ${OUT_DIR}, ${WORK_DIR}, or ${TMP_DIR}; writing under\n${CACHE_DIR} requires caching. Scattered outputs use ${ITEM_DIR}, including when cached.\nA missing output converts exit 0 into a failure.",
+          "type": [
+            "array",
+            "null"
+          ],
+          "default": null,
+          "items": {
+            "type": "string"
+          }
+        },
+        "retries": {
+          "description": "Number of retry attempts on failure (0 = no retries).",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "default": null,
+          "minimum": 0
+        },
+        "retry_delay": {
+          "description": "Delay in seconds between retry attempts.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "default": null,
+          "minimum": 0
+        },
+        "scatter": {
+          "description": "Run this step once per item of a collection, rather than once.\n\nThe step name stays the same and every instance shares it for reporting; what multiplies is\nthe *execution* — each item gets its own directory, environment, cache entry, and log. See\n[`ScatterDef`] for the spelling.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScatterDef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "teardown": {
+          "description": "If true, this step runs after the main pipeline completes (success or failure).",
+          "type": "boolean",
+          "default": false
+        },
+        "threads": {
+          "description": "Thread allocation: \"auto\" (share the available budget) or a fixed number.",
+          "$ref": "#/$defs/ThreadAllocation"
+        },
+        "threads_weight": {
+          "description": "Relative share of the budget among `\"auto\"` steps ready in the same scheduling pass.\n\nA ratio, not a thread count: weights are meaningful only against the other members of the\ncohort, so they scale with `-@` rather than pinning a number. Two ready steps weighted 3 and\n1 split what is available 3:1 — six and two threads under `-@ 8`, three and one under `-@ 4`.\n\nAbsent means 1, which is the equal split that has always been the behaviour. A weight\ntherefore only has an effect when two or more `\"auto\"` steps are ready together and at least\none of them declares something other than 1.\n\nContradictory with a fixed `threads`, and rejected as such: a fixed cost already states the\nexact number of permits the step wants, leaving no share to divide.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "default": null,
+          "minimum": 0
+        },
+        "timeout": {
+          "description": "Optional timeout in seconds. Step is killed if it exceeds this duration.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "default": null,
+          "minimum": 0
+        },
+        "trigger_rule": {
+          "description": "Trigger rule determining when this step should execute",
+          "$ref": "#/$defs/TriggerRule",
+          "default": "all_success"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "exec",
+        "label"
+      ]
+    },
+    "StepDefaults": {
+      "description": "Default values applied to all steps unless overridden at the step level.",
+      "type": "object",
+      "properties": {
+        "retries": {
+          "description": "Default number of retry attempts for all steps.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint32",
+          "minimum": 0
+        },
+        "retry_delay": {
+          "description": "Default delay in seconds between retry attempts.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        },
+        "timeout": {
+          "description": "Default timeout in seconds for all steps.",
+          "type": [
+            "integer",
+            "null"
+          ],
+          "format": "uint64",
+          "minimum": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "ThreadAllocation": {
+      "description": "Thread allocation: the string \"auto\" to use the CLI-provided thread budget as an auto share, or a fixed thread count of at least 1.",
+      "anyOf": [
+        {
+          "type": "string",
+          "const": "auto"
+        },
+        {
+          "type": "integer",
+          "format": "uint32",
+          "minimum": 1
+        }
+      ]
+    },
+    "TriggerRule": {
+      "description": "Trigger rule determining when a step should execute.",
+      "oneOf": [
+        {
+          "description": "All upstream tasks must succeed (default)",
+          "type": "string",
+          "const": "all_success"
+        },
+        {
+          "description": "All upstream tasks must fail",
+          "type": "string",
+          "const": "all_failed"
+        },
+        {
+          "description": "All upstream tasks must complete (any state)",
+          "type": "string",
+          "const": "all_done"
+        },
+        {
+          "description": "At least one upstream task must succeed",
+          "type": "string",
+          "const": "one_success"
+        },
+        {
+          "description": "At least one upstream task must fail",
+          "type": "string",
+          "const": "one_failed"
+        },
+        {
+          "description": "No upstream tasks failed (success or skipped OK)",
+          "type": "string",
+          "const": "none_failed"
+        },
+        {
+          "description": "No failures and at least one success",
+          "type": "string",
+          "const": "none_failed_min_one_success"
+        },
+        {
+          "description": "No upstream tasks were skipped",
+          "type": "string",
+          "const": "none_skipped"
+        },
+        {
+          "description": "Always execute regardless of upstream states",
+          "type": "string",
+          "const": "always"
+        }
+      ]
+    }
+  }
+}
