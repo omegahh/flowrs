@@ -4,6 +4,13 @@
   "description": "The complete pipeline manifest parsed from manifest.toml.\n\nAn unrecognized field is a parse error, here and in every section with a fixed field list: serde\ndiscards one by default, so `retreies = 3` read as a step with no retries and said nothing. It is\nalso what makes [`diagnostics`]'s unknown-field hint reachable.",
   "type": "object",
   "properties": {
+    "collections": {
+      "description": "The item sets a `scatter` step runs over, keyed by collection name.",
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/CollectionDef"
+      }
+    },
     "constraints": {
       "description": "Cross-parameter constraints",
       "type": "array",
@@ -49,6 +56,52 @@
     "pipeline"
   ],
   "$defs": {
+    "CollectionDef": {
+      "description": "A deterministic set of items, loaded from one file.\n\nUnknown fields are refused, for the reason\n[`Manifest`](crate::manifest::Manifest) gives.",
+      "type": "object",
+      "properties": {
+        "format": {
+          "description": "`tsv`, `json`, or absent to infer from the file's extension.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/CollectionFormat"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "id_column": {
+          "description": "Which column (TSV) or key (JSON) holds each item's id.",
+          "type": "string"
+        },
+        "source": {
+          "description": "The file the items are read from, relative to the input directory or absolute.\nOnly a leading `${INPUT_DIR}` expands; other engine variables are refused.",
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "required": [
+        "source",
+        "id_column"
+      ]
+    },
+    "CollectionFormat": {
+      "description": "How a collection file is parsed.\n\nAn enum rather than a free string so the accepted set is closed at parse time, and so the\nschema `generate-schema` publishes is the same set `Deserialize` accepts.",
+      "oneOf": [
+        {
+          "description": "One header row naming the columns, then one row per item, tab-separated.",
+          "type": "string",
+          "const": "tsv"
+        },
+        {
+          "description": "A JSON array of objects, one per item.",
+          "type": "string",
+          "const": "json"
+        }
+      ]
+    },
     "Constraint": {
       "description": "A cross-parameter constraint.",
       "type": "object",
@@ -116,44 +169,14 @@
           "description": "Should the step be retried on this error?",
           "type": "boolean",
           "default": false
-        },
-        "severity": {
-          "description": "Severity level",
-          "$ref": "#/$defs/ErrorSeverity"
         }
       },
       "additionalProperties": false,
       "required": [
         "code",
         "exit_code",
-        "severity",
         "category",
         "message"
-      ]
-    },
-    "ErrorSeverity": {
-      "description": "Error severity level.",
-      "oneOf": [
-        {
-          "description": "Informational, does not affect execution",
-          "type": "string",
-          "const": "info"
-        },
-        {
-          "description": "Potential issue, execution continues",
-          "type": "string",
-          "const": "warning"
-        },
-        {
-          "description": "Error condition, step fails but pipeline may continue",
-          "type": "string",
-          "const": "error"
-        },
-        {
-          "description": "Critical failure, pipeline stops immediately",
-          "type": "string",
-          "const": "fatal"
-        }
       ]
     },
     "GroupDef": {
@@ -180,6 +203,17 @@
       "description": "A parameter definition from the manifest.",
       "type": "object",
       "properties": {
+        "default": {
+          "description": "Base default value, used when no profile override supplies one.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ParamScalar"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "description": {
           "description": "Human description",
           "type": [
@@ -194,14 +228,14 @@
             "null"
           ]
         },
-        "enum_labels": {
-          "description": "Labels for enum values",
+        "enum": {
+          "description": "Allowed values",
           "type": [
             "array",
             "null"
           ],
           "items": {
-            "type": "string"
+            "$ref": "#/$defs/ParamScalar"
           }
         },
         "exclusive_max": {
@@ -227,6 +261,14 @@
             "null"
           ]
         },
+        "increment": {
+          "description": "Required increment for numeric values. Values are anchored at `min` when present, otherwise\nat zero: `min = 0, increment = 5` permits `0, 5, 10, ...`.",
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
         "max": {
           "description": "Inclusive maximum",
           "type": [
@@ -243,33 +285,41 @@
           ],
           "format": "double"
         },
+        "profiles": {
+          "description": "Categories this parameter's value maps onto, each naming the values it covers.\n\n```toml\n[params.MODE.profiles]\nfast   = [\"FAST\"]\nnormal = [\"NORMAL\", \"SENSITIVE\"]\n```\n\n**At most one parameter per pipeline carries this**, and the category it yields keys every\n*other* parameter's `[params.<name>.<profile>]` default. A profile is therefore an attribute\nof the parameter that produces the category, not a pipeline-level block: the two mechanisms —\ncomputing a value ([`Self::detector`]) and classifying a run — are independent, and either may\nappear without the other.\n\nThe union of the value-sets must **equal** the parameter's domain: its `enum`, or\n`{true, false}` for a `boolean`. No value unassigned, none claimed twice. A parameter with no\nclosed domain cannot be profiled, since there would be nothing for the union to equal.\n\nMembers are [`toml::Value`] rather than `String` so a `boolean` parameter writes\n`fast = [false]` — the values it classifies, in the type it declared.\n\nAn **explicit** field for the same reason [`Self::detector`] is: `#[serde(flatten)]` below\nwould otherwise swallow the table as a profile override named `profiles`.",
+          "type": [
+            "object",
+            "null"
+          ],
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/$defs/ParamScalar"
+            }
+          }
+        },
         "readonly": {
           "description": "If true, user cannot override via -p or -c.\nValue is resolved normally (base default → profile override).",
           "type": "boolean",
           "default": false
         },
-        "step": {
-          "description": "UI step size",
-          "type": [
-            "number",
-            "null"
-          ],
-          "format": "double"
-        },
         "type": {
           "description": "Parameter type",
           "$ref": "#/$defs/ParamType"
-        },
-        "visible": {
-          "description": "Whether visible in UI (default: true)",
-          "type": [
-            "boolean",
-            "null"
-          ]
         }
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/ProfileOverride"
       },
       "required": [
         "type"
+      ]
+    },
+    "ParamScalar": {
+      "type": [
+        "string",
+        "number",
+        "boolean"
       ]
     },
     "ParamType": {
@@ -392,6 +442,58 @@
         "version"
       ]
     },
+    "ProfileOverride": {
+      "description": "Profile-specific override for a parameter's default value and constraints.",
+      "type": "object",
+      "properties": {
+        "default": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ParamScalar"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "exclusive_max": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "exclusive_min": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "increment": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "max": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "min": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        }
+      },
+      "additionalProperties": false
+    },
     "Requirements": {
       "description": "External tools and libraries a pipeline needs, grouped by how presence is established.\n\nThree groups rather than one list with a `type` field: each is probed by a different\nmechanism (a `PATH` lookup, an interpreter import, a loader query), and the TOML reads as\nthe sections a pipeline author already thinks in.\n\nVersions are deliberately absent. A constraint is only worth writing down if it can be\nchecked, and there is no portable way to ask an arbitrary bioinformatics tool its version\n— `samtools --version`, `bwa` with no argument, and `fastqc --version` disagree on both\nthe flag and the format. Recording constraints that are never enforced would be worse\nthan recording none: it reads as a guarantee. Presence is what FlowRs can honestly check,\nso presence is what the schema expresses.",
       "type": "object",
@@ -420,12 +522,34 @@
       },
       "additionalProperties": false
     },
+    "ScatterDef": {
+      "anyOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "description": "How a step's execution is spread over a collection's items.\n\nAbsent means the step runs once. A `scatter` step runs once **per item**, in the item's own\ndirectory, with its own cache entry and its own log.\n\n`Deserialize` accepts both `scatter = \"samples\"` and `scatter = { collection = \"samples\" }`. The\ngenerated schema describes both forms. The table permits only `collection`.",
+          "type": "object",
+          "properties": {
+            "collection": {
+              "description": "The collection declared under `[collections.<name>]` whose items this step runs over.",
+              "type": "string"
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "collection"
+          ]
+        }
+      ]
+    },
     "StepDef": {
       "description": "A single step in the pipeline workflow.\n\nUnknown fields are refused, for the reason [`Manifest`](crate::manifest::Manifest) gives.",
       "type": "object",
       "properties": {
         "cache": {
-          "description": "Reuse this step's results across runs when its inputs are unchanged.\n\nA cached step writes to `${CACHE_DIR}`, a directory keyed by everything that can\nchange its output (see `cache_key`). When a run finds a completed entry for that key\nit skips the step and downstream steps read the existing results.",
+          "description": "Reuse this step's results across runs when its inputs are unchanged.\n\nScalar results use the shared `${CACHE_DIR}`; scattered results use `${ITEM_DIR}` under\nthat root. Cache markers track the identity described by `cache_key`. A matching completed\nentry reuses the existing results without executing the step.",
           "type": "boolean",
           "default": false
         },
@@ -449,12 +573,20 @@
           "description": "Executable filename relative to pipeline's steps/ directory",
           "type": "string"
         },
+        "gather": {
+          "description": "The scattered steps this step consumes the completed results of, as one batch.\n\nDistinct from `depends_on` because the cardinality differs: a gather step waits for\n*every* instance of the named steps, and receives a generated manifest describing them all\nrather than one upstream's outputs. A step naming both is a gather step that also has scalar\nprerequisites.\n\nA scattered step is never listed here — an instance consumes its upstream's matching\ninstance, which is what `depends_on` already expresses between two steps over the same\ncollection.",
+          "type": "array",
+          "default": [],
+          "items": {
+            "type": "string"
+          }
+        },
         "label": {
           "description": "Human-readable label for this step",
           "type": "string"
         },
         "outputs": {
-          "description": "Expected output files this step should produce (optional).\nPaths must use allowed variables: ${OUT_DIR}, ${WORK_DIR}, ${TMP_DIR},\nand ${CACHE_DIR} for a cached step.\nIf declared, FlowRs will check these files exist after step completion.\nMissing required outputs convert a successful exit (0) into a failure.",
+          "description": "Expected output files, checked after a successful exit.\nScalar paths may be absolute or use ${OUT_DIR}, ${WORK_DIR}, or ${TMP_DIR}; writing under\n${CACHE_DIR} requires caching. Scattered outputs use ${ITEM_DIR}, including when cached.\nA missing output converts exit 0 into a failure.",
           "type": [
             "array",
             "null"
@@ -484,13 +616,25 @@
           "default": null,
           "minimum": 0
         },
+        "scatter": {
+          "description": "Run this step once per item of a collection, rather than once.\n\nThe step name stays the same and every instance shares it for reporting; what multiplies is\nthe *execution* — each item gets its own directory, environment, cache entry, and log. See\n[`ScatterDef`] for the spelling.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/ScatterDef"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
         "teardown": {
           "description": "If true, this step runs after the main pipeline completes (success or failure).",
           "type": "boolean",
           "default": false
         },
         "threads": {
-          "description": "Thread allocation: \"auto\" (use CLI value) or fixed number.",
+          "description": "Thread allocation: \"auto\" (share the available budget) or a fixed number.",
           "$ref": "#/$defs/ThreadAllocation"
         },
         "threads_weight": {
@@ -560,7 +704,7 @@
       "additionalProperties": false
     },
     "ThreadAllocation": {
-      "description": "Thread allocation: the string \"auto\" to use the CLI-provided thread count, or a fixed thread count of at least 1.",
+      "description": "Thread allocation: the string \"auto\" to use the CLI-provided thread budget as an auto share, or a fixed thread count of at least 1.",
       "anyOf": [
         {
           "type": "string",
