@@ -1,0 +1,621 @@
+#compdef flowrs
+
+autoload -U is-at-least
+
+_flowrs() {
+    typeset -A opt_args
+    typeset -a _arguments_options
+    local ret=1
+
+    if is-at-least 5.2; then
+        _arguments_options=(-s -S -C)
+    else
+        _arguments_options=(-s -C)
+    fi
+
+    local context curcontext="$curcontext" state line
+    _arguments "${_arguments_options[@]}" : \
+'-q[Suppress all output except errors]' \
+'--quiet[Suppress all output except errors]' \
+'*-v[Print per-step detail; repeat for more (-vv); -q wins]' \
+'*--verbose[Print per-step detail; repeat for more (-vv); -q wins]' \
+'-h[Print help]' \
+'--help[Print help]' \
+'-V[Print version]' \
+'--version[Print version]' \
+":: :_flowrs_commands" \
+"*::: :->flowrs" \
+&& ret=0
+    case $state in
+    (flowrs)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:flowrs-command-$line[1]:"
+        case $line[1] in
+            (run)
+_arguments "${_arguments_options[@]}" : \
+'-i+[Input data, read-only\: the engine never writes here]:DIR:_files' \
+'--input-dir=[Input data, read-only\: the engine never writes here]:DIR:_files' \
+'-w+[Everything the run writes goes here]:DIR:_files' \
+'--work-dir=[Everything the run writes goes here]:DIR:_files' \
+'-t+[Name the run, putting its outputs in WORK_DIR/TASKID/]:ID:_default' \
+'--task-id=[Name the run, putting its outputs in WORK_DIR/TASKID/]:ID:_default' \
+'-c+[Load parameters from a JSON, TOML, or KEY=VALUE file]:FILE:_default' \
+'--config=[Load parameters from a JSON, TOML, or KEY=VALUE file]:FILE:_default' \
+'*-p+[Set one parameter, overriding -c (repeatable)]:KEY=VALUE:_default' \
+'*--param=[Set one parameter, overriding -c (repeatable)]:KEY=VALUE:_default' \
+'-@+[Total threads shared by all concurrent work]:N:_default' \
+'--threads=[Total threads shared by all concurrent work]:N:_default' \
+'-s+[Start here, dropping everything upstream]:STEP:_default' \
+'--start-step=[Start here, dropping everything upstream]:STEP:_default' \
+'-e+[Stop here, dropping everything downstream]:STEP:_default' \
+'--end-step=[Stop here, dropping everything downstream]:STEP:_default' \
+'*-k+[Skip these steps, keeping the rest of the graph]:STEP:_default' \
+'*--skip-steps=[Skip these steps, keeping the rest of the graph]:STEP:_default' \
+'--max-in-flight=[Cap how many items of a scattered step run at once]:N:_default' \
+'--tmp-dir=[Put temporary files here instead of OUT_DIR/tmp]:PATH:_files' \
+'(-s --start-step -e --end-step -k --skip-steps)--resume[Continue a prior run, skipping steps that already completed]' \
+'--force[Allow a --resume override that a completed step'\''s cache key covers]' \
+'--keep-tmp[Keep temporary files after the run finishes]' \
+'-q[Suppress all output except errors]' \
+'--quiet[Suppress all output except errors]' \
+'*-v[Print per-step detail; repeat for more (-vv); -q wins]' \
+'*--verbose[Print per-step detail; repeat for more (-vv); -q wins]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+':pipeline -- Pipeline\: registered name, folder path, or .flowpkg file:_default' \
+&& ret=0
+;;
+(create)
+_arguments "${_arguments_options[@]}" : \
+'-d+[Description written into the new manifest]:TEXT:_default' \
+'--description=[Description written into the new manifest]:TEXT:_default' \
+'--update[Refresh the scaffold files in an existing pipeline]' \
+'-q[Suppress all output except errors]' \
+'--quiet[Suppress all output except errors]' \
+'*-v[Print per-step detail; repeat for more (-vv); -q wins]' \
+'*--verbose[Print per-step detail; repeat for more (-vv); -q wins]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+':name -- Pipeline name, also the directory created for it:_default' \
+&& ret=0
+;;
+(compile)
+_arguments "${_arguments_options[@]}" : \
+'-o+[Bundle the pipeline into this .flowpkg file]:FILE:_files' \
+'--output=[Bundle the pipeline into this .flowpkg file]:FILE:_files' \
+'--sign-with=[Sign the package with this RSA private key (PEM)]:FILE:_files' \
+'--author=[Record this author in the package metadata]:NAME:_default' \
+'--encrypt[Encrypt the payloads, so running needs a license grant]' \
+'--json[Emit the diagnostics envelope as JSON on stdout]' \
+'-q[Suppress all output except errors]' \
+'--quiet[Suppress all output except errors]' \
+'*-v[Print per-step detail; repeat for more (-vv); -q wins]' \
+'*--verbose[Print per-step detail; repeat for more (-vv); -q wins]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+':pipeline_dir -- Pipeline directory to compile and validate:_files' \
+&& ret=0
+;;
+(registry)
+_arguments "${_arguments_options[@]}" : \
+'-q[Suppress all output except errors]' \
+'--quiet[Suppress all output except errors]' \
+'*-v[Print per-step detail; repeat for more (-vv); -q wins]' \
+'*--verbose[Print per-step detail; repeat for more (-vv); -q wins]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_flowrs__subcmd__registry_commands" \
+"*::: :->registry" \
+&& ret=0
+
+    case $state in
+    (registry)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:flowrs-registry-command-$line[1]:"
+        case $line[1] in
+            (add)
+_arguments "${_arguments_options[@]}" : \
+'--name=[Register under this name instead of one derived from the path]:NAME:_default' \
+'-q[Suppress all output except errors]' \
+'--quiet[Suppress all output except errors]' \
+'*-v[Print per-step detail; repeat for more (-vv); -q wins]' \
+'*--verbose[Print per-step detail; repeat for more (-vv); -q wins]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+':path -- Pipeline folder or .flowpkg file to register:_files' \
+&& ret=0
+;;
+(remove)
+_arguments "${_arguments_options[@]}" : \
+'-q[Suppress all output except errors]' \
+'--quiet[Suppress all output except errors]' \
+'*-v[Print per-step detail; repeat for more (-vv); -q wins]' \
+'*--verbose[Print per-step detail; repeat for more (-vv); -q wins]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':name -- Registered pipeline name to remove:_default' \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+'-d[Also show each path, kind, and whether it still exists]' \
+'--detailed[Also show each path, kind, and whether it still exists]' \
+'--json[Emit JSON on stdout instead of human-readable text]' \
+'-q[Suppress all output except errors]' \
+'--quiet[Suppress all output except errors]' \
+'*-v[Print per-step detail; repeat for more (-vv); -q wins]' \
+'*--verbose[Print per-step detail; repeat for more (-vv); -q wins]' \
+'-h[Print help]' \
+'--help[Print help]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_flowrs__subcmd__registry__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:flowrs-registry-help-command-$line[1]:"
+        case $line[1] in
+            (add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(remove)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(inspect)
+_arguments "${_arguments_options[@]}" : \
+'--check-environment[Check host tools and packages instead of showing the manifest]' \
+'--json[Emit JSON on stdout instead of human-readable text]' \
+'-q[Suppress all output except errors]' \
+'--quiet[Suppress all output except errors]' \
+'*-v[Print per-step detail; repeat for more (-vv); -q wins]' \
+'*--verbose[Print per-step detail; repeat for more (-vv); -q wins]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':pipeline -- Pipeline\: registered name, folder path, or .flowpkg file:_default' \
+&& ret=0
+;;
+(license)
+_arguments "${_arguments_options[@]}" : \
+'-q[Suppress all output except errors]' \
+'--quiet[Suppress all output except errors]' \
+'*-v[Print per-step detail; repeat for more (-vv); -q wins]' \
+'*--verbose[Print per-step detail; repeat for more (-vv); -q wins]' \
+'-h[Print help]' \
+'--help[Print help]' \
+":: :_flowrs__subcmd__license_commands" \
+"*::: :->license" \
+&& ret=0
+
+    case $state in
+    (license)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:flowrs-license-command-$line[1]:"
+        case $line[1] in
+            (status)
+_arguments "${_arguments_options[@]}" : \
+'-f+[Check this license file instead of searching the default paths]:FILE:_files' \
+'--file=[Check this license file instead of searching the default paths]:FILE:_files' \
+'-q[Suppress all output except errors]' \
+'--quiet[Suppress all output except errors]' \
+'*-v[Print per-step detail; repeat for more (-vv); -q wins]' \
+'*--verbose[Print per-step detail; repeat for more (-vv); -q wins]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(add)
+_arguments "${_arguments_options[@]}" : \
+'-q[Suppress all output except errors]' \
+'--quiet[Suppress all output except errors]' \
+'*-v[Print per-step detail; repeat for more (-vv); -q wins]' \
+'*--verbose[Print per-step detail; repeat for more (-vv); -q wins]' \
+'-h[Print help]' \
+'--help[Print help]' \
+':file -- License file to install:_files' \
+&& ret=0
+;;
+(fingerprint)
+_arguments "${_arguments_options[@]}" : \
+'-q[Suppress all output except errors]' \
+'--quiet[Suppress all output except errors]' \
+'*-v[Print per-step detail; repeat for more (-vv); -q wins]' \
+'*--verbose[Print per-step detail; repeat for more (-vv); -q wins]' \
+'-h[Print help (see more with '\''--help'\'')]' \
+'--help[Print help (see more with '\''--help'\'')]' \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_flowrs__subcmd__license__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:flowrs-license-help-command-$line[1]:"
+        case $line[1] in
+            (status)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(fingerprint)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+":: :_flowrs__subcmd__help_commands" \
+"*::: :->help" \
+&& ret=0
+
+    case $state in
+    (help)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:flowrs-help-command-$line[1]:"
+        case $line[1] in
+            (run)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(create)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(compile)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(registry)
+_arguments "${_arguments_options[@]}" : \
+":: :_flowrs__subcmd__help__subcmd__registry_commands" \
+"*::: :->registry" \
+&& ret=0
+
+    case $state in
+    (registry)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:flowrs-help-registry-command-$line[1]:"
+        case $line[1] in
+            (add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(remove)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(list)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(inspect)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(license)
+_arguments "${_arguments_options[@]}" : \
+":: :_flowrs__subcmd__help__subcmd__license_commands" \
+"*::: :->license" \
+&& ret=0
+
+    case $state in
+    (license)
+        words=($line[1] "${words[@]}")
+        (( CURRENT += 1 ))
+        curcontext="${curcontext%:*:*}:flowrs-help-license-command-$line[1]:"
+        case $line[1] in
+            (status)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(add)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+(fingerprint)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+(help)
+_arguments "${_arguments_options[@]}" : \
+&& ret=0
+;;
+        esac
+    ;;
+esac
+;;
+        esac
+    ;;
+esac
+}
+
+(( $+functions[_flowrs_commands] )) ||
+_flowrs_commands() {
+    local commands; commands=(
+'run:Execute a pipeline' \
+'create:Scaffold a new pipeline in a directory of its own' \
+'compile:Validate a pipeline, optionally packaging it into a .flowpkg' \
+'registry:Add, remove, and list named pipelines' \
+'inspect:Show a pipeline'\''s steps, parameters, constraints, errors, and hooks' \
+'license:Inspect, install, and report on licenses' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'flowrs commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__compile_commands] )) ||
+_flowrs__subcmd__compile_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs compile commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__create_commands] )) ||
+_flowrs__subcmd__create_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs create commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__help_commands] )) ||
+_flowrs__subcmd__help_commands() {
+    local commands; commands=(
+'run:Execute a pipeline' \
+'create:Scaffold a new pipeline in a directory of its own' \
+'compile:Validate a pipeline, optionally packaging it into a .flowpkg' \
+'registry:Add, remove, and list named pipelines' \
+'inspect:Show a pipeline'\''s steps, parameters, constraints, errors, and hooks' \
+'license:Inspect, install, and report on licenses' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'flowrs help commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__help__subcmd__compile_commands] )) ||
+_flowrs__subcmd__help__subcmd__compile_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs help compile commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__help__subcmd__create_commands] )) ||
+_flowrs__subcmd__help__subcmd__create_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs help create commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__help__subcmd__help_commands] )) ||
+_flowrs__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs help help commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__help__subcmd__inspect_commands] )) ||
+_flowrs__subcmd__help__subcmd__inspect_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs help inspect commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__help__subcmd__license_commands] )) ||
+_flowrs__subcmd__help__subcmd__license_commands() {
+    local commands; commands=(
+'status:Show the active license and verify its signature' \
+'add:Install a license file to the default location' \
+'fingerprint:Print this machine'\''s fingerprint, for requesting a license' \
+    )
+    _describe -t commands 'flowrs help license commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__help__subcmd__license__subcmd__add_commands] )) ||
+_flowrs__subcmd__help__subcmd__license__subcmd__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs help license add commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__help__subcmd__license__subcmd__fingerprint_commands] )) ||
+_flowrs__subcmd__help__subcmd__license__subcmd__fingerprint_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs help license fingerprint commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__help__subcmd__license__subcmd__status_commands] )) ||
+_flowrs__subcmd__help__subcmd__license__subcmd__status_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs help license status commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__help__subcmd__registry_commands] )) ||
+_flowrs__subcmd__help__subcmd__registry_commands() {
+    local commands; commands=(
+'add:Register a pipeline under a name for \`flowrs run\`' \
+'remove:Remove a pipeline from the registry' \
+'list:List registered pipelines' \
+    )
+    _describe -t commands 'flowrs help registry commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__help__subcmd__registry__subcmd__add_commands] )) ||
+_flowrs__subcmd__help__subcmd__registry__subcmd__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs help registry add commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__help__subcmd__registry__subcmd__list_commands] )) ||
+_flowrs__subcmd__help__subcmd__registry__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs help registry list commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__help__subcmd__registry__subcmd__remove_commands] )) ||
+_flowrs__subcmd__help__subcmd__registry__subcmd__remove_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs help registry remove commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__help__subcmd__run_commands] )) ||
+_flowrs__subcmd__help__subcmd__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs help run commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__inspect_commands] )) ||
+_flowrs__subcmd__inspect_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs inspect commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__license_commands] )) ||
+_flowrs__subcmd__license_commands() {
+    local commands; commands=(
+'status:Show the active license and verify its signature' \
+'add:Install a license file to the default location' \
+'fingerprint:Print this machine'\''s fingerprint, for requesting a license' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'flowrs license commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__license__subcmd__add_commands] )) ||
+_flowrs__subcmd__license__subcmd__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs license add commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__license__subcmd__fingerprint_commands] )) ||
+_flowrs__subcmd__license__subcmd__fingerprint_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs license fingerprint commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__license__subcmd__help_commands] )) ||
+_flowrs__subcmd__license__subcmd__help_commands() {
+    local commands; commands=(
+'status:Show the active license and verify its signature' \
+'add:Install a license file to the default location' \
+'fingerprint:Print this machine'\''s fingerprint, for requesting a license' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'flowrs license help commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__license__subcmd__help__subcmd__add_commands] )) ||
+_flowrs__subcmd__license__subcmd__help__subcmd__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs license help add commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__license__subcmd__help__subcmd__fingerprint_commands] )) ||
+_flowrs__subcmd__license__subcmd__help__subcmd__fingerprint_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs license help fingerprint commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__license__subcmd__help__subcmd__help_commands] )) ||
+_flowrs__subcmd__license__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs license help help commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__license__subcmd__help__subcmd__status_commands] )) ||
+_flowrs__subcmd__license__subcmd__help__subcmd__status_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs license help status commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__license__subcmd__status_commands] )) ||
+_flowrs__subcmd__license__subcmd__status_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs license status commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__registry_commands] )) ||
+_flowrs__subcmd__registry_commands() {
+    local commands; commands=(
+'add:Register a pipeline under a name for \`flowrs run\`' \
+'remove:Remove a pipeline from the registry' \
+'list:List registered pipelines' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'flowrs registry commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__registry__subcmd__add_commands] )) ||
+_flowrs__subcmd__registry__subcmd__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs registry add commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__registry__subcmd__help_commands] )) ||
+_flowrs__subcmd__registry__subcmd__help_commands() {
+    local commands; commands=(
+'add:Register a pipeline under a name for \`flowrs run\`' \
+'remove:Remove a pipeline from the registry' \
+'list:List registered pipelines' \
+'help:Print this message or the help of the given subcommand(s)' \
+    )
+    _describe -t commands 'flowrs registry help commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__registry__subcmd__help__subcmd__add_commands] )) ||
+_flowrs__subcmd__registry__subcmd__help__subcmd__add_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs registry help add commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__registry__subcmd__help__subcmd__help_commands] )) ||
+_flowrs__subcmd__registry__subcmd__help__subcmd__help_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs registry help help commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__registry__subcmd__help__subcmd__list_commands] )) ||
+_flowrs__subcmd__registry__subcmd__help__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs registry help list commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__registry__subcmd__help__subcmd__remove_commands] )) ||
+_flowrs__subcmd__registry__subcmd__help__subcmd__remove_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs registry help remove commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__registry__subcmd__list_commands] )) ||
+_flowrs__subcmd__registry__subcmd__list_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs registry list commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__registry__subcmd__remove_commands] )) ||
+_flowrs__subcmd__registry__subcmd__remove_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs registry remove commands' commands "$@"
+}
+(( $+functions[_flowrs__subcmd__run_commands] )) ||
+_flowrs__subcmd__run_commands() {
+    local commands; commands=()
+    _describe -t commands 'flowrs run commands' commands "$@"
+}
+
+if [ "$funcstack[1]" = "_flowrs" ]; then
+    _flowrs "$@"
+else
+    compdef _flowrs flowrs
+fi
