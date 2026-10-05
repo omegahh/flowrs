@@ -356,7 +356,7 @@
           }
         },
         "on_start": {
-          "description": "Announce that the run exists: fired once the pipeline is unpacked, before parameter\nresolution and the profile detector.\n\nEarliest point at which the hook scripts are readable — for a package they are inside the\nencrypted payload — so it is also the earliest a hook can fire at all. A \"run started\"\nnotification sent from a DAG step would be silent for a run that died in resolution.\n\nSees the engine-provided paths but **not** resolved params: resolution has not run yet.",
+          "description": "Announce that the run exists: fired once the pipeline is unpacked, before parameter\nresolution and the profile detector.\n\nEarliest point at which the hook scripts are readable — for a package they are inside the\nprotected payload — so it is also the earliest a hook can fire at all. A \"run started\"\nnotification sent from a DAG step would be silent for a run that died in resolution.\n\nSees the engine-provided paths but **not** resolved params: resolution has not run yet.",
           "type": "array",
           "default": [],
           "items": {
