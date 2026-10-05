@@ -43,7 +43,7 @@ engine.
    environment check is needed. `inspect --json` emits the projection on success and a diagnostic
    envelope on failure.
 9. Read `references/running.md`; use an existing input directory. The work directory is created
-   after the licence gate when absent:
+   after validation when absent:
    `flowrs run PIPELINE -i INPUT_DIR -w WORK_DIR`.
 10. Read `references/status-json.md`; parse `WORK_DIR/status.json`, or
     `WORK_DIR/TASK_ID/status.json` when `-t TASK_ID` was used.
@@ -62,7 +62,7 @@ engine.
   effective concurrency is constrained by both.
 - Supply a parameter with `-p KEY=VALUE` or `-c FILE` when no detector, profile default, base
   default, or resume baseline can provide it.
-- Treat `77` as an unusable licence, `79` as a missing grant for an encrypted package, `78` as an
+- Treat `77` as an unusable licence for a protected package, `79` as a missing grant for a protected package, `78` as an
   invalid manifest, and `64` as an invalid invocation or supplied value.
 
 ## Minimal Pipeline
