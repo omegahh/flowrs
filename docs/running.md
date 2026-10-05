@@ -9,7 +9,7 @@ flowrs run <PIPELINE> -i <INPUT_DIR> -w <WORK_DIR> [-t <TASK_ID>] [options]
 | Flag               | Effect                                                           |
 | ------------------ | ---------------------------------------------------------------- |
 | `-i, --input-dir`  | Input data. Read-only: the engine never writes here              |
-| `-w, --work-dir`   | Work directory; created after the licence gate when absent       |
+| `-w, --work-dir`   | Work directory; created after validation when absent             |
 | `-t, --task-id`    | Outputs go to `WORK_DIR/TASKID/`. Omit for `WORK_DIR/` directly  |
 | `-p, --param`      | `KEY=VALUE`, repeatable                                          |
 | `-c, --config`     | Config file: JSON, TOML, or `KEY=VALUE` lines                    |
@@ -246,7 +246,7 @@ What still runs after the signal is narrower than it looks:
 | **teardown steps** | **do not execute** — they reach the same already-cancelled check and are recorded without running |
 | `on_error` hooks | do not fire — you stopped the run, which is not a fault |
 | **`on_failure` hooks** | **run to completion**, uninterrupted by the signal |
-| system cleanup | the claim is released and a package's decrypted tree is removed; scratch survives |
+| system cleanup | the claim is released and a package's extracted tree is removed; scratch survives |
 
 So `on_failure` is the only *authored* work guaranteed to happen after a Ctrl-C, and it is there to
 report the ending, not to clean up: `$EXIT_CODE` is `128 + N` and `status.json` carries
