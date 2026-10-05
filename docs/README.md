@@ -25,7 +25,7 @@ contracts; the agent-facing operating instructions live in `skills/flowrs-author
 | [Runtime contract](runtime-contract.md)         | Environment variables, paths, working directory, and logs         |
 | [Stdlib](stdlib.md)                             | Bash, Python, R, and C++ helpers and input-health checks          |
 | [Dependencies and parallelism](dependencies.md) | DAGs, trigger rules, thread budgets, scatter/gather, teardown     |
-| [Distributing](distributing.md)                 | Validation, `.flowpkg` packages, encryption, grants, and registry |
+| [Distributing](distributing.md)                 | Validation, `.flowpkg` packages, protection, grants, and registry |
 
 ## Related material
 
