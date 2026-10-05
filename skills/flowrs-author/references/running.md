@@ -10,7 +10,7 @@ Use the command that matches the operation:
 | `flowrs create NAME --update` | Replace binary-owned scaffold files |
 | `flowrs compile DIR` | Run Makefile when present and validate; write no package |
 | `flowrs compile DIR -o FILE` | Validate and write a plain .flowpkg |
-| `flowrs compile DIR -o FILE --encrypt` | Validate and write an encrypted .flowpkg |
+| `flowrs compile DIR -o FILE --encrypt` | Validate and write a protected .flowpkg |
 | `flowrs inspect PIPELINE` | Show the manifest projection |
 | `flowrs inspect PIPELINE --check-environment` | Check declared host tools and libraries |
 | `flowrs license fingerprint` | Print the machine fingerprint |
@@ -46,13 +46,13 @@ flowrs inspect ./demo
 flowrs inspect ./demo --json
 flowrs inspect ./demo --check-environment
 flowrs compile ./demo -o demo.flowpkg
-flowrs compile ./demo -o demo-encrypted.flowpkg --encrypt
+flowrs compile ./demo -o demo-protected.flowpkg --encrypt
 ~~~
 
 Without -o, compile writes no package. With -o, missing step or detector executables are fatal.
 A Makefile runs before validation and may write build outputs. Missing executables without -o
 produce warnings; check that every referenced file exists before running. Running a plain package
-needs a valid base licence; running an encrypted package also needs a matching pipeline grant.
+needs no licence; running a protected package needs a valid licence and matching pipeline grant.
 
 For ELF checks, install `readelf` (binutils) and put `ldconfig` on PATH. Inspection reads dependency
 metadata without executing pipeline binaries. It checks direct and transitive library presence,
@@ -82,7 +82,7 @@ Required flags:
 | Flag | Rule |
 | --- | --- |
 | `-i, --input-dir DIR` | Existing read-only input directory |
-| `-w, --work-dir DIR` | Work directory; created after the licence gate when absent |
+| `-w, --work-dir DIR` | Work directory; created after validation when absent |
 
 Identity and parameters:
 
@@ -118,7 +118,7 @@ against one task directory.
 
 ## Licence Gates
 
-Install a licence before running:
+Install a licence before running a protected package:
 
 ~~~bash
 flowrs license fingerprint
@@ -127,8 +127,9 @@ flowrs license status
 ~~~
 
 The search order is ./flowrs.license, ./license.json, /etc/flowrs/license.json, and
-~/.flowrs/license.json. A valid base licence authorizes the engine and plain packages. An
-encrypted package additionally needs pipeline_grants[PIPELINE_NAME] matching its source digest.
+~/.flowrs/license.json. Protected packages need a valid licence plus
+pipeline_grants[PIPELINE_NAME] matching their source digest. Plaintext directories and packages
+do not consult a licence.
 
 ## Slices
 
