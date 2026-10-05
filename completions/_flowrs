@@ -86,7 +86,7 @@ _arguments "${_arguments_options[@]}" : \
 '--output=[Bundle the pipeline into this .flowpkg file]:FILE:_files' \
 '--sign-with=[Sign the package with this RSA private key (PEM)]:FILE:_files' \
 '--author=[Record this author in the package metadata]:NAME:_default' \
-'--encrypt[Encrypt the payloads, so running needs a license grant]' \
+'--encrypt[Protect the payloads, so running needs a valid license and matching grant]' \
 '--json[Emit the diagnostics envelope as JSON on stdout]' \
 '-q[Suppress all output except errors]' \
 '--quiet[Suppress all output except errors]' \
@@ -140,8 +140,8 @@ _arguments "${_arguments_options[@]}" : \
 ;;
 (list)
 _arguments "${_arguments_options[@]}" : \
-'-d[Also show each path, kind, and whether it still exists]' \
-'--detailed[Also show each path, kind, and whether it still exists]' \
+'-d[Also show each full file path and whether it still exists]' \
+'--detailed[Also show each full file path and whether it still exists]' \
 '--json[Emit JSON on stdout instead of human-readable text]' \
 '-q[Suppress all output except errors]' \
 '--quiet[Suppress all output except errors]' \
