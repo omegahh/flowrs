@@ -25,24 +25,24 @@ $ flowrs compile full -o full.flowpkg
      info Including: steps, bin, hooks, lib, stdlib
      info Stdlib: v0.5.0 (8 files)
   success Created package: full.flowpkg
-     info Package is unencrypted: it runs without a per-package grant (base license still
-     required) and its contents are readable.
+     info Package is plaintext: it runs without a license or per-package grant, and its
+     contents are readable.
 ```
 
-A plain package runs for anyone holding a valid licence — no grant needed — and its contents are
-readable. Use it when the code is not the secret.
+A plain package runs without a licence or grant, and its contents are readable. Use it when the
+code is not the secret.
 
-### Plain vs `--encrypt`
+### Plaintext vs protected packages
 
-`--encrypt` encrypts the payloads. Running the result then needs a **grant for that source
+`--encrypt` protects the payloads. Running the result then needs a **grant for that source
 content**:
 
 ```console
-$ flowrs compile full -o full-enc.flowpkg --encrypt
-  success Created package: full-enc.flowpkg
-     info Payloads are encrypted: running this package requires a license grant.
+$ flowrs compile full -o full-protected.flowpkg --encrypt
+  success Created package: full-protected.flowpkg
+     info Payloads are protected: running this package requires a valid license and matching grant.
 
-$ flowrs run full-enc.flowpkg -i input -w work9 -t enc
+$ flowrs run full-protected.flowpkg -i input -w work9 -t protected
      info Checking license...
   success License valid (licensee: Field Test)
     error License verification failed: License has no grant for pipeline 'full'
@@ -54,7 +54,7 @@ tier 2 is missing.
 
 `--sign-with <KEY>` adds a signature so a recipient can verify the package came from you.
 
-### Request a grant for an encrypted package
+### Request a grant for a protected package
 
 A grant authorizes one named package build for the machines and dates chosen by the issuer. Send
 the package and the machine identity requested by the issuer to whoever issues licences for your
@@ -62,17 +62,17 @@ group.
 
 ```console
 $ license-gen generate -p private_key.pem -l "Field Test" -d 30 \
-    --machine <fingerprint> --grant full-enc.flowpkg -o flowrs.license
+    --machine <fingerprint> --grant full-protected.flowpkg -o flowrs.license
   Authorized machines: 1
   Schema version: 2.0
   Pipeline grants:
     full v0.2.0
 ```
 
-With that licence in place, the encrypted package runs:
+With that licence in place, the protected package runs:
 
 ```console
-$ flowrs run full-enc.flowpkg -i input -w work9 -t enc
+$ flowrs run full-protected.flowpkg -i input -w work9 -t protected
   success Pipeline completed: 6 steps completed, 1 skipped in 1s
 ```
 
@@ -87,20 +87,28 @@ Registering copies a package into FlowRs' managed store and gives it a name, so 
 paths:
 
 ```console
-$ flowrs registry add full.flowpkg --name fullpkg
+$ flowrs registry add full-protected.flowpkg --name fullpkg
   success Registered 'fullpkg' -> /home/you/.flowrs/store/51139f37….flowpkg
-    (copied from /tmp/full.flowpkg)
+    (copied from /tmp/full-protected.flowpkg)
 
 $ flowrs registry list
 Registered pipelines:
 
-  fullpkg              51139f37….flowpkg
-  simple               /home/you/pipelines/simple
+  Name     Version  Type         File
+  fullpkg  0.2.0    protected ✓  51139f37….flowpkg
+  simple   0.2.0    plaintext    /home/you/pipelines/simple
 
 $ flowrs run fullpkg -i input -w work -t task001
 ```
 
 A directory can be registered too, in which case the registry records the path rather than copying.
+The table shows the registered name, pipeline version, type, and file. For protected packages,
+`✓` means a valid licence and matching grant authorize that package on this machine; `✗` means
+authorization failed. Plaintext entries need no licence and have no marker. Use `flowrs license
+status` for details. The header is bold on a terminal, with `NO_COLOR` respected.
+
+`registry list --detailed` shows full file paths and whether they exist. Unreadable package
+metadata appears as type `unknown` with version `—`.
 `registry list --json` is machine-readable and `registry remove <NAME>` removes an entry. The
 registry is a TOML file at `~/.flowrs/registry.toml`, file-locked against concurrent writes.
 
