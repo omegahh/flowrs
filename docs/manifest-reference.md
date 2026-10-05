@@ -388,7 +388,7 @@ Hooks already started are **not** interrupted by the signal that cancelled the r
 `on_error`. Each is bounded by the hook timeout instead. Cancellation does not start a new
 `on_error` reaction, but the run waits for notifications already in flight.
 
-System cleanup needs no hook. The output-directory claim is released and a package's decrypted
+System cleanup needs no hook. The output-directory claim is released and a package's extracted
 tree is removed on every handled ending. Scratch survives a failure or signal; a clean run removes
 it unless `--keep-tmp` was supplied.
 
