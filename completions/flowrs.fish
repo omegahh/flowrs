@@ -60,7 +60,7 @@ complete -c flowrs -n "__fish_flowrs_using_subcommand create" -s h -l help -d 'P
 complete -c flowrs -n "__fish_flowrs_using_subcommand compile" -s o -l output -d 'Bundle the pipeline into this .flowpkg file' -r -F
 complete -c flowrs -n "__fish_flowrs_using_subcommand compile" -l sign-with -d 'Sign the package with this RSA private key (PEM)' -r -F
 complete -c flowrs -n "__fish_flowrs_using_subcommand compile" -l author -d 'Record this author in the package metadata' -r
-complete -c flowrs -n "__fish_flowrs_using_subcommand compile" -l encrypt -d 'Encrypt the payloads, so running needs a license grant'
+complete -c flowrs -n "__fish_flowrs_using_subcommand compile" -l encrypt -d 'Protect the payloads, so running needs a valid license and matching grant'
 complete -c flowrs -n "__fish_flowrs_using_subcommand compile" -l json -d 'Emit the diagnostics envelope as JSON on stdout'
 complete -c flowrs -n "__fish_flowrs_using_subcommand compile" -s q -l quiet -d 'Suppress all output except errors'
 complete -c flowrs -n "__fish_flowrs_using_subcommand compile" -s v -l verbose -d 'Print per-step detail; repeat for more (-vv); -q wins'
@@ -79,7 +79,7 @@ complete -c flowrs -n "__fish_flowrs_using_subcommand registry; and __fish_seen_
 complete -c flowrs -n "__fish_flowrs_using_subcommand registry; and __fish_seen_subcommand_from remove" -s q -l quiet -d 'Suppress all output except errors'
 complete -c flowrs -n "__fish_flowrs_using_subcommand registry; and __fish_seen_subcommand_from remove" -s v -l verbose -d 'Print per-step detail; repeat for more (-vv); -q wins'
 complete -c flowrs -n "__fish_flowrs_using_subcommand registry; and __fish_seen_subcommand_from remove" -s h -l help -d 'Print help'
-complete -c flowrs -n "__fish_flowrs_using_subcommand registry; and __fish_seen_subcommand_from list" -s d -l detailed -d 'Also show each path, kind, and whether it still exists'
+complete -c flowrs -n "__fish_flowrs_using_subcommand registry; and __fish_seen_subcommand_from list" -s d -l detailed -d 'Also show each full file path and whether it still exists'
 complete -c flowrs -n "__fish_flowrs_using_subcommand registry; and __fish_seen_subcommand_from list" -l json -d 'Emit JSON on stdout instead of human-readable text'
 complete -c flowrs -n "__fish_flowrs_using_subcommand registry; and __fish_seen_subcommand_from list" -s q -l quiet -d 'Suppress all output except errors'
 complete -c flowrs -n "__fish_flowrs_using_subcommand registry; and __fish_seen_subcommand_from list" -s v -l verbose -d 'Print per-step detail; repeat for more (-vv); -q wins'
