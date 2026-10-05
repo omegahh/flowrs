@@ -10,10 +10,11 @@
 | `126`/`127` | Not executable / command not found                                                  |
 | `128+N`     | Killed by signal N                                                                  |
 
-**77 and 79 are different problems.** 77 means the licence itself is unusable — missing, expired,
-wrong machine, bad signature — and you fix it by installing a good one. 79 means the licence is fine
-but does not authorize *this encrypted package*: no grant, an expired one, or one issued for a
-different build. Only the issuer can fix a 79, so a script seeing it should ask for a (re)grant
+**77 and 79 are different problems.** For a protected package, 77 means the licence itself is
+unusable — missing, expired, wrong machine, or bad signature — and you fix it by installing a good
+one. 79 means the licence is fine but does not authorize *this protected package*: no grant, an
+expired one, or one issued for a different build. Plaintext directories and plain packages never
+enter either gate. Only the issuer can fix a 79, so a script seeing it should ask for a (re)grant
 rather than re-check the licence file.
 
 **Exit 0 is not enough.** If a step declares `outputs` and any is missing, the step fails with 120:
