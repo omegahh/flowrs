@@ -9,9 +9,9 @@
 | 64 | Invalid invocation or value from the invocation |
 | 65 | Malformed or corrupt input data or package |
 | 70 | Runtime, process, or internal failure |
-| 77 | Invalid or unusable base licence |
+| 77 | Protected package licence is invalid or unusable |
 | 78 | Manifest is invalid |
-| 79 | Valid licence lacks a grant for the encrypted package |
+| 79 | Valid licence lacks a grant for the protected package |
 | 100–119 | Built-in input-health codes |
 | 120 | Declared output missing after exit 0 |
 | 124 | Step timeout |
@@ -27,7 +27,7 @@ The blame line is:
 
 - 64: fix the command, flag, config, or supplied value.
 - 78: fix the manifest.
-- 77: install or repair the base licence.
+- 77: install or repair the licence for a protected package.
 - 79: ask the issuer for a package grant.
 
 ## JSON Envelope
