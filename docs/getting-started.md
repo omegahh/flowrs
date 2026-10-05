@@ -18,10 +18,10 @@ flowrs --version
 Shell completions are in the archive under `completions/`. To build from source,
 `cargo build --release` writes `target/release/flowrs`.
 
-## Install a licence
+## Install a licence for protected packages
 
-**Nothing runs without a valid licence.** A plain pipeline or an unencrypted `.flowpkg` needs the
-licence itself. An encrypted `.flowpkg` also needs a grant for that package.
+**Plaintext runs need no licence.** A pipeline directory and a plain `.flowpkg` run without one. A
+protected `.flowpkg` needs a valid licence and a grant for that package.
 
 FlowRs searches these paths in order and uses the first file that validates:
 
@@ -51,13 +51,13 @@ Check the installed licence before a run:
 flowrs license status
 ```
 
-Adding a licence may require network access. Once installed, runs can work offline until the
-licence expires. Keep `~/.flowrs` available on containers and cluster nodes; deleting it means
-installing the licence again.
+Adding a licence may require network access. Once installed, protected-package runs can work
+offline until the licence expires. Keep `~/.flowrs` available on containers and cluster nodes;
+deleting it means installing the licence again.
 
 If validation fails, use the reported path and expiry information to correct the licence, or ask
-the issuer for a replacement. A licence failure is exit code `77`; a missing grant for an
-encrypted package is exit code `79`.
+the issuer for a replacement. A licence failure for a protected package is exit code `77`; a
+missing grant is exit code `79`.
 
 ## Run a pipeline
 
@@ -68,7 +68,7 @@ flowrs run <PIPELINE> -i <INPUT_DIR> -w <WORK_DIR> [-t <TASK_ID>]
 ```
 
 `<PIPELINE>` may be a registered name, a pipeline directory, or a `.flowpkg`. The input directory
-must already exist; the work directory is created after the licence gate if absent.
+must already exist; the work directory is created after validation if absent.
 Use `-t` when several runs share one work directory; each task gets its own output directory.
 
 For parameters and run controls, see [Running](running.md). For a pipeline directory, a useful
