@@ -137,12 +137,12 @@ Create a distributable package with `-o`:
 
 ```bash
 flowrs compile ./hello -o hello.flowpkg
-flowrs compile ./hello -o hello-encrypted.flowpkg --encrypt
+flowrs compile ./hello -o hello-protected.flowpkg --encrypt
 ```
 
-A plain package needs the normal FlowRs licence. An encrypted package also needs a grant for that
-package. The [distribution guide](https://github.com/omegahh/flowrs/blob/main/docs/distributing.md) covers signing, encryption, grants, and
-registry entries.
+A plaintext pipeline directory and a plain package run without a licence. A protected package
+requires a valid licence and a matching grant for that package. The [distribution guide](https://github.com/omegahh/flowrs/blob/main/docs/distributing.md)
+covers signing, protection, grants, and registry entries.
 
 ## Run and inspect results
 
@@ -196,7 +196,7 @@ flowrs registry remove hello
 
 ## Licence
 
-Running FlowRs requires a valid machine-bound licence. Ask the licence issuer which machine
+Only protected packages require a machine-bound licence. Ask the licence issuer which machine
 identity to send:
 
 ```bash
@@ -206,8 +206,8 @@ flowrs license status
 ```
 
 FlowRs searches `./flowrs.license`, `./license.json`, `/etc/flowrs/license.json`, and
-`~/.flowrs/license.json`, in that order. A licence can run plain pipelines and packages; an
-encrypted package additionally needs a matching pipeline grant.
+`~/.flowrs/license.json`, in that order. A licence is checked when a protected package is opened;
+that package additionally needs a matching pipeline grant.
 
 ## Exit codes
 
@@ -219,9 +219,9 @@ The process code is intended for scripts:
 | `64` | Invalid command or supplied value |
 | `65` | Malformed or corrupt input/package |
 | `70` | Runtime or internal failure |
-| `77` | Licence is missing, invalid, expired, or for another machine |
+| `77` | Protected package licence is missing, invalid, expired, or for another machine |
 | `78` | Manifest configuration is invalid |
-| `79` | Licence is valid but lacks a grant for an encrypted package |
+| `79` | Licence is valid but lacks a grant for a protected package |
 
 For a run, `status.json` identifies the step and its exit code. See the complete
 [exit-code reference](https://github.com/omegahh/flowrs/blob/main/docs/exit-codes.md) for diagnostics and built-in step errors.
@@ -235,7 +235,7 @@ For a run, `status.json` identifies the step and its exit code. See the complete
 - [Standard library](https://github.com/omegahh/flowrs/blob/main/docs/stdlib.md) - Bash, Python, R, and C++ helpers
 - [Dependencies and parallelism](https://github.com/omegahh/flowrs/blob/main/docs/dependencies.md) - DAGs, trigger rules, and scatter/gather
 - [Running](https://github.com/omegahh/flowrs/blob/main/docs/running.md) - slices, resume, caching, and signals
-- [Distributing](https://github.com/omegahh/flowrs/blob/main/docs/distributing.md) - `.flowpkg`, signing, encryption, and grants
+- [Distributing](https://github.com/omegahh/flowrs/blob/main/docs/distributing.md) - `.flowpkg`, signing, protection, and grants
 - [Exit codes](https://github.com/omegahh/flowrs/blob/main/docs/exit-codes.md) - stable codes and machine-readable diagnostics
 
 The public repository keeps the generated [manifest schema](https://github.com/omegahh/flowrs/blob/main/schema/manifest-v1.json),
