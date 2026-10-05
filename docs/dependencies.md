@@ -312,7 +312,7 @@ The last row is worth spelling out, because both options run "at the end":
 Work whose failure must not count belongs in a hook — name the script in both `on_success` and
 `on_failure` if it should happen either way. See
 [`[pipeline.hooks]`](manifest-reference.md#pipelinehooks--lifecycle-scripts). `$TMP_DIR`, the claim file, and a package's
-decrypted tree are removed for you, so scratch cleanup only needs a hook for paths you created
+extracted tree are removed for you, so scratch cleanup only needs a hook for paths you created
 elsewhere.
 
 Teardown steps declare threads like any other step and draw from the same `-@` budget, so a run
