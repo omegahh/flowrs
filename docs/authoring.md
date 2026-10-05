@@ -60,7 +60,7 @@ Use the author reference in this order:
    scatter/gather, and teardown.
 3. [Running](running.md) — the operator flags your pipeline must support, including resume and
    caching.
-4. [Distributing](distributing.md) — validation, plain or encrypted packages, grants, signing,
+4. [Distributing](distributing.md) — validation, plaintext or protected packages, grants, signing,
    and registry entries.
 
 Before handing a pipeline to an operator, validate it without creating a package:
