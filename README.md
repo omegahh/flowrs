@@ -164,18 +164,18 @@ Useful run options include:
 -e, --end-step STEP         Stop at a step and drop its downstream
 -k, --skip-steps STEP ...   Skip named steps
 --resume                    Continue a prior run
---force                     Allow a safe-to-resume parameter override
---keep-tmp                  Keep temporary files after a clean run
+--force                     Accept input or cache-key drift on resume
+--keep-tmp                  Retain scratch after handled exit
 ```
 
-Each run records its result under the work directory (or under `WORK_DIR/TASK_ID/` when `-t` is
-used):
+After setup, run records are under the work directory (or under `WORK_DIR/TASK_ID/` when `-t` is
+used). Early validation refusals can leave no record:
 
 ```text
 status.json    # machine-readable run and step results
 params.json    # resolved parameter values
 logs/          # logs for steps, detectors, hooks, and scattered items
-tmp/           # scratch files; removed after success unless --keep-tmp
+tmp/           # scratch base; use --keep-tmp to retain scratch
 ```
 
 Read `status.json` for automation. It includes the schema version, run status, step outcomes,
@@ -196,8 +196,8 @@ flowrs registry remove hello
 
 ## Licence
 
-Only protected packages require a machine-bound licence. Ask the licence issuer which machine
-identity to send:
+Protected packages require a valid licence and a matching grant. The issuer can restrict the
+licence to named machines. For a machine-restricted licence, send the issuer this identity:
 
 ```bash
 flowrs license fingerprint
@@ -230,7 +230,7 @@ For a run, `status.json` identifies the step and its exit code. See the complete
 
 - [Getting started](https://github.com/omegahh/flowrs/blob/main/docs/getting-started.md) - install, licence, run, and read results
 - [Pipeline author guide](https://github.com/omegahh/flowrs/blob/main/docs/authoring.md) - build and package a pipeline
-- [Manifest reference](https://github.com/omegahh/flowrs/blob/main/docs/manifest-reference.md) - every manifest field and rule
+- [Manifest reference](https://github.com/omegahh/flowrs/blob/main/docs/manifest-reference.md) - manifest fields and rules
 - [Runtime contract](https://github.com/omegahh/flowrs/blob/main/docs/runtime-contract.md) - environment variables, paths, and logs
 - [Standard library](https://github.com/omegahh/flowrs/blob/main/docs/stdlib.md) - Bash, Python, R, and C++ helpers
 - [Dependencies and parallelism](https://github.com/omegahh/flowrs/blob/main/docs/dependencies.md) - DAGs, trigger rules, and scatter/gather
