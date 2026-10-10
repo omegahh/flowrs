@@ -1,11 +1,12 @@
 # Operator guide
 
-This guide is for the person who installs FlowRs, receives a licence, runs a pipeline, and checks
-the result. Pipeline authors should start with the [pipeline author guide](authoring.md).
+This guide covers installation, running a pipeline, and checking its result.
+A FlowRs pipeline is a TOML manifest plus scripts: the manifest names steps, their dependencies,
+parameters, and expected outputs. Authors start with the [pipeline author guide](authoring.md).
 
 ## Install
 
-FlowRs ships as one static binary. Download the archive for your platform from the
+FlowRs releases provide a static Linux x86_64 binary. Download the archive from the
 [releases page](https://github.com/omegahh/flowrs/releases), unpack it, and put the binary on your
 `PATH`:
 
@@ -36,8 +37,8 @@ Ask the licence issuer which machine identity to send:
 flowrs license fingerprint
 ```
 
-A machine identity can change after a hardware replacement or operating-system reinstall. When it
-does, ask the issuer to reissue the licence.
+A machine identity can change after a hardware replacement or operating-system reinstall. If the
+licence restricts machines, ask the issuer to reissue it with the new identity.
 
 Install the file they return:
 
@@ -80,27 +81,30 @@ flowrs inspect <PIPELINE> --check-environment
 
 ## Read the result
 
-Each run writes its result under the work directory:
+After setup, run files are under the work directory. Early validation refusals can leave no record;
+parameter-resolution failures can leave `status.json` without `params.json`:
 
 ```text
 <work>/<task>/status.json   # machine-readable run and step results
 <work>/<task>/params.json   # resolved parameter values
-<work>/<task>/logs/          # one complete log per execution unit
-<work>/<task>/tmp/           # scratch retained after failures
+<work>/<task>/logs/          # captured output from launched units
+<work>/<task>/tmp/           # scratch base; use --keep-tmp to retain scratch
 ```
+
+Without `-t`, these files are directly under `<work>/`. `--tmp-dir` selects a different scratch
+base.
 
 `status.json` is the file for automation. Its `schema_version` identifies the document format;
 optional fields are absent when they do not apply. The top-level `status` is `running`,
 `completed`, or `failed`. Each step records its status, timing, exit code when it ran, and any
 failure or skip reason. Scattered steps also record their item results.
 
-The `version_fingerprint` and `input_fingerprint` fields let `--resume` decide whether an earlier
-run can be continued. Treat a refusal as a request to start a fresh run unless you have reviewed
-the change and deliberately use `--force`.
+Use [Resume](running.md#resume) to continue a prior run. Review changes before using `--force`:
+it permits retained and new results to come from different inputs or parameter values.
 
-Console output is a summary. The files under `logs/` contain the complete stdout and stderr for
-each step, detector, hook, and scattered item. Use those logs for diagnosis, and
-[exit codes](exit-codes.md) for scripts that need to classify failures.
+Console output is a summary. Files under `logs/` capture stdout and stderr from launched
+steps, detectors, hooks, and scattered items. Cached or skipped work may have no new log.
+Use these for diagnosis, and [exit codes](exit-codes.md) for scripts that classify failures.
 
 ## Manage runs
 
@@ -111,7 +115,7 @@ each step, detector, hook, and scattered item. Use those logs for diagnosis, and
 - Use the registry commands to give packages stable names:
   `flowrs registry add demo.flowpkg --name demo`, `flowrs registry list`, and
   `flowrs registry remove demo`. A registered package can then be passed to `flowrs run` by name.
-- Use `--keep-tmp` after a failure when you need the scratch directory for investigation.
+- Include `--keep-tmp` in the run command when you need scratch retained for investigation.
 
 Pipeline authors should continue with the [pipeline author guide](authoring.md), then the
 [manifest reference](manifest-reference.md).
