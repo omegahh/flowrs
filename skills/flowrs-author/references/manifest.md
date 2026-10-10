@@ -62,7 +62,8 @@ teardown = false
 
 - exec names a file under steps/; label is required and is shown in output and status.json.
 - depends_on is a list of declared step names. It creates graph edges.
-- threads is "auto" or an integer of at least 1. Omit it to use the step default.
+- threads is "auto" or an integer of at least 1. Omit it for "auto". Fixed counts above the
+  run budget are reduced to that budget; scripts must use the supplied THREADS allocation.
 - threads_weight is a positive integer for an auto step; omit it for weight 1. Reject it with a
   fixed threads value.
 - timeout, retries, and retry_delay are non-negative integer seconds/counts. Retries are
@@ -72,13 +73,14 @@ teardown = false
 - outputs is optional. Scalar outputs may use ${OUT_DIR}, ${WORK_DIR}, ${TMP_DIR}, or absolute
   paths; writing below ${CACHE_DIR} requires cache = true. Scattered outputs use ${ITEM_DIR},
   including when cached. ${INPUT_DIR} is forbidden, and a scalar step has no ${ITEM_DIR}.
+  Place the root variable first; do not include another variable or . or .. path components.
   A declared output missing after exit 0 changes the step result to exit 120.
 - teardown = true runs the step after the main graph, whether the graph succeeds or fails. It is
-  not allowed with scatter.
-- gather is a list of scattered step names. It waits for every instance as one batch and provides
+  not allowed with scatter. It does not start after cancellation or a setup failure.
+- gather is a list of scattered step names. It waits for the named scattered batches and provides
   FLOWRS_GATHER_MANIFEST. Do not repeat a gathered step in depends_on or combine gather with scatter.
 - scatter is a collection name or { collection = "NAME" }. It runs once per collection item.
-- cache = true requires pipeline.cache_dir. Declare every file written below ${CACHE_DIR} in
+- cache = true requires pipeline.cache_dir. Declare cached output files in
   outputs; declare the parameter names that affect the output in cache_key. Do not name a
   readonly parameter in cache_key.
 
@@ -91,7 +93,7 @@ retry_delay = 5
 timeout = 600
 ~~~
 
-Apply these to every step that does not set the corresponding value. No other default field is
+Apply these to steps that do not set the corresponding value. No other default field is
 valid.
 
 ## Parameters
@@ -121,7 +123,7 @@ detector = "detect_quality.sh"
   bounds. increment applies only to integer and number params, and values must be spaced by it
   from min when present, or zero otherwise.
 - enum restricts values to a typed list. Values are coerced to the declared type before checking.
-- readonly = true refuses every -p and -c override. A readonly parameter needs a default or a
+- readonly = true refuses explicit -p and -c overrides. A readonly parameter needs a default or a
   profile default.
 - detector names one file under bin/. A detector and readonly cannot be combined. A detector
   inside a profile override is invalid.
@@ -135,7 +137,19 @@ readonly gate > -p/-c > detected > profile default > base default > unset
 On resume, recorded values sit below explicit overrides and above detection. Readonly parameters
 refuse explicit overrides and resolve from the current manifest's defaults, ignoring the recorded
 value. A readonly parameter cannot have a detector. A value at unset makes the run fail with exit
-64 and names every missing parameter.
+64 and names the missing parameters together.
+
+### Detectors
+
+A detector receives -i INPUT_DIR -o OUT_DIR and the unit environment without resolved parameters.
+Emit [FLOWRS:PARAM] NAME=value on stderr, once per answer. One script can answer for several
+parameters and runs once for the parameters needing detection. Explicit or resumed values bypass
+detection for those parameters; the script may still run for other parameters sharing it.
+
+An omitted answer warns and uses the base default if one exists; otherwise resolution fails.
+Nonzero exits, timeouts, duplicate answers, and invalid values fail even when a default exists.
+Answers for parameters not naming the script warn and are ignored. Read references/stdlib.md
+for reporting helpers and references/status-json.md for the limits of detector records.
 
 ### Profiles
 
@@ -187,7 +201,9 @@ help_url = "https://example.invalid/no-input"
 - exit_code must be unique and in 1..=63.
 - category is a free-form label.
 - message is static text; do not add runtime placeholders.
-- retryable defaults to false; max_retries overrides the step retry count for this code.
+- retryable defaults to false and stops retries for this declared error. When true, max_retries
+  overrides the step retry count for this code. Timeouts, signal exits, and missing declared
+  outputs are not retried.
 - help_url is optional.
 
 Report an error from a script by its code, not its number. A matching on_error.CODE hook may
@@ -205,7 +221,7 @@ on_error.NO_INPUT_DATA = ["repair-input.sh"]
 
 Use bare filenames resolved under hooks/. Accepted keys are on_start, on_success, on_failure,
 and on_error.CODE. Hooks are side-channel notifications: they do not participate in the DAG,
-slices, or thread budget, and a hook failure never fails the run. Cancellation does not trigger a
+slices, or thread budget, and a hook failure does not fail the run. Cancellation does not trigger a
 new on_error hook. Use a teardown step for delivery work whose failure must fail the run.
 
 ## Collections
@@ -225,9 +241,9 @@ encoded by the engine before reaching a path.
 Use an absolute source or a path relative to INPUT_DIR. Only a leading `${INPUT_DIR}` expands;
 other variables are refused during manifest validation.
 
-Scatter a step with scatter = "samples". Every item receives ITEM_DIR, item index, id, and a
+Scatter a step with scatter = "samples". Item executions receive ITEM_DIR, item index, id, and a
 metadata file. Launch order is collection-file order. A gather step names scattered steps in
-gather = ["align"] and waits for every instance.
+gather = ["align"] and waits for the named scattered batches.
 
 ## Constraints
 
@@ -239,8 +255,13 @@ message = "High quality requires paired mode"
 ~~~
 
 Use one comparison per expression. Supported operators are ==, !=, >, <, >=, and <=. The left
-side of when and require names a parameter; the right side is a literal. When when is true and
-require is false, resolution fails with exit 64.
+side of `when` and `require` names a parameter; the right side is a literal. If `when` is true and
+`require` is false, resolution fails with exit 64.
+
+The referenced parameters must have a default in each reachable validation window: use the selected
+profile's default when supplied, otherwise the base default. Without a profile selector, the base
+window is checked. Invocation-only, resume-only, or detector-only values cannot satisfy this
+compile-time requirement.
 
 ## Requirements And Groups
 
