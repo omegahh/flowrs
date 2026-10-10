@@ -8,7 +8,7 @@ Use the command that matches the operation:
 | --- | --- |
 | `flowrs create NAME` | Create a scaffold |
 | `flowrs create NAME --update` | Replace binary-owned scaffold files |
-| `flowrs compile DIR` | Run Makefile when present and validate; write no package |
+| `flowrs compile DIR` | Clean and rebuild with Makefile when present, then validate; write no package |
 | `flowrs compile DIR -o FILE` | Validate and write a plain .flowpkg |
 | `flowrs compile DIR -o FILE --encrypt` | Validate and write a protected .flowpkg |
 | `flowrs inspect PIPELINE` | Show the manifest projection |
@@ -25,6 +25,7 @@ Use the command that matches the operation:
 PIPELINE accepts a registered name, a directory, or a .flowpkg path. compile --json emits a
 diagnostic envelope on stdout for success and failure. inspect --json emits its projection on
 success and an envelope only on failure. run has no --json; use status.json.
+Argument-parser errors can exit 2 with usage on stderr and no JSON; check stdout before parsing.
 
 ## Create
 
@@ -50,8 +51,10 @@ flowrs compile ./demo -o demo-protected.flowpkg --encrypt
 ~~~
 
 Without -o, compile writes no package. With -o, missing step or detector executables are fatal.
-A Makefile runs before validation and may write build outputs. Missing executables without -o
-produce warnings; check that every referenced file exists before running. Running a plain package
+A Makefile must provide a clean target that removes its compiled outputs. When a Makefile exists, compile runs
+make clean, then make before validation, rebuilding even after header-only changes. Either command
+failing stops compilation and packaging. Missing executables without -o produce warnings; check
+that referenced files exist before running. Running a plain package
 needs no licence; running a protected package needs a valid licence and matching pipeline grant.
 
 For ELF checks, install `readelf` (binutils) and put `ldconfig` on PATH. Inspection reads dependency
@@ -81,7 +84,7 @@ Required flags:
 
 | Flag | Rule |
 | --- | --- |
-| `-i, --input-dir DIR` | Existing read-only input directory |
+| `-i, --input-dir DIR` | Existing input directory; scripts must treat it as read-only |
 | `-w, --work-dir DIR` | Work directory; created after validation when absent |
 
 Identity and parameters:
@@ -104,7 +107,7 @@ Execution:
 | `--resume` | Continue the prior plan in the same output directory |
 | `--force` | Requires --resume; bypass changed-input and completed-step cache-key drift refusals |
 | `--tmp-dir PATH` | Absolute scratch base instead of OUT_DIR/tmp |
-| `--keep-tmp` | Keep scratch after a clean run; failures and signals already keep it |
+| `--keep-tmp` | Retain scratch after success, failure, or handled cancellation |
 
 Output flags are global:
 
@@ -128,8 +131,9 @@ flowrs license status
 
 The search order is ./flowrs.license, ./license.json, /etc/flowrs/license.json, and
 ~/.flowrs/license.json. Protected packages need a valid licence plus
-pipeline_grants[PIPELINE_NAME] matching their source digest. Plaintext directories and packages
-do not consult a licence.
+pipeline_grants[PIPELINE_NAME] matching their source digest. A non-empty machine list must include
+this machine; an empty list permits any machine. Plaintext directories and packages do not consult
+a licence.
 
 ## Slices
 
@@ -145,27 +149,35 @@ Resume in the same task directory:
 flowrs run PIPELINE -i INPUT_DIR -w WORK_DIR -t RUN_ID --resume
 ~~~
 
-Resume replays the prior planned step set and treats completed and cached steps as satisfied. It
+Resume replays the prior planned step set and retains completed uncached steps. Cached steps
+reenter cache handling, and teardown steps run again. It
 loads the prior params.json as a baseline, while new -p and -c values override it. Readonly
 parameters resolve from the current manifest's defaults, including profile overrides, instead of
 the baseline. Explicit -p and -c overrides of readonly parameters are refused.
 
 The engine compares engine version, pipeline version, input fingerprint when caching is enabled,
 and collection digests for scattered steps. A changed version starts the pipeline from scratch in
-the existing directory. A changed input is refused unless `--force` is supplied; a changed
-collection is always refused and requires a new run or restoration of the collection file. Editing
-a step script is not part of the version fingerprint; bump the pipeline version or rely on the cache
-identity.
+the existing directory. With versions unchanged, a profile-selector override that changes its
+value is refused even with --force; remove the override or rerun from scratch. A changed input
+is refused unless `--force` is supplied. A changed collection identity is refused even with
+--force; use a fresh task or restore the parsed collection.
+A cache-key parameter override is refused when its producer or a descendant has retained completed
+results. --force bypasses this refusal and the input refusal; it does not recompute retained steps.
+Use a fresh task to avoid mixing old and new results.
+
+Script edits are outside the version fingerprint. Bump pipeline.version or use a fresh task after
+behavior changes. For edits outside cache tracking, also change or clear the cache directory.
 
 ## Threads And Scatter
 
--@ is a permit budget, not a process count. A fixed threads = N step costs N permits. Ready
-threads = "auto" steps divide the available share by threads_weight. THREADS in a unit is its
-allocation.
+-@ is a permit budget, not a process count. A fixed threads = N execution costs N permits,
+reduced to the run budget if N exceeds it. Ready threads = "auto" steps divide the available
+share by threads_weight. Pass the supplied THREADS allocation to tools rather than assuming
+the declared count.
 
 --max-in-flight counts items of one logical scattered step. It is a queue bound and does not
 replace the thread budget. Effective concurrency is bounded by both. Items launch in collection
-file order. A scattered output belongs below ${ITEM_DIR}. A gather waits for every instance and
+file order. A scattered output belongs below ${ITEM_DIR}. A gather waits for the named scattered batches and
 reads ${FLOWRS_GATHER_MANIFEST}.
 
 ## Cache
@@ -181,18 +193,28 @@ outputs = ["${CACHE_DIR}/aligned.bam"]
 ~~~
 
 The cache identity includes the executable bytes, input-tree stat fingerprint, declared cache-key
-values, collection identity, and cached upstream identities. Declare every file written below
-${CACHE_DIR}. A cache hit is cached, not skipped, because outputs exist. Do not share one cache
-directory between runs that use incompatible cache keys.
+values, parsed collection identity, and relevant upstream identities, including uncached intermediate
+executables. Declare cached outputs in outputs; hits check their existence, not content integrity.
+Input stat tracking uses relative paths, sizes, mtimes, directory names, and regular-file symlink
+spelling/resolved metadata, ignoring common OS metadata files. Same-size, same-mtime edits can escape it.
+Imported libraries, external tools, and unlisted parameters are outside tracking. Use a new cache
+directory or remove affected entries after these change; a new task id alone is insufficient.
+
+A cache hit is cached, not skipped. Avoid conflicting writers to shared output paths. Cache
+replacement detected at step boundaries fails with CACHE_INPUT_CHANGED (121); resolve the conflict
+and rerun. The check does not protect a process's reads during execution.
 
 ## Signals And Scratch
 
 SIGINT, SIGTERM, SIGHUP, and SIGQUIT cancel a run and normally return 128 + signal_number. Running
-processes are killed as a group. Unstarted steps are skipped with reason cancelled. Teardown steps
-do not start after cancellation. on_failure still runs; on_error does not run for cancellation.
+processes are killed as a group. Cancellation during scheduling skips unstarted steps with reason
+cancelled; earlier cancellation can leave them pending. Teardown steps do not start after
+cancellation. on_failure runs once the hook lifecycle has started; on_error does not run for cancellation.
 SIGKILL, power loss, and machine reset cannot be handled.
 
-Scratch survives failure and signals. A clean run removes it unless --keep-tmp is supplied.
+FlowRs attempts to remove scratch on success, failure, and handled cancellation unless --keep-tmp
+was supplied on that invocation. Cleanup errors can leave residue. Use the flag before reproducing
+a failure; the retained path is printed.
 
 ## Packaging And Registry
 
@@ -202,4 +224,4 @@ flowrs registry remove demo
 ~~~
 
 Package registration copies .flowpkg files into content-addressed storage. Directory registration
-keeps a path reference. A registry name can be supplied anywhere a pipeline argument is accepted.
+keeps a path reference. Use a registry name with run or inspect. Compile accepts a pipeline directory.
