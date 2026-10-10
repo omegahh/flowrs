@@ -1,160 +1,88 @@
-## Exit codes
+# Exit codes
 
-| Code        | Meaning                                                                             |
-| ----------- | ----------------------------------------------------------------------------------- |
-| `0`         | Success — **and every declared `outputs` file exists**                              |
-| `1`–`63`    | Yours, via `[[errors]]`. Passed through as `flowrs run`'s own exit code             |
-| `64`–`99`   | FlowRs CLI: 64 validation, 65 bad data, 70 runtime, 77 licence, 78 manifest, 79 grant |
-| `120`       | `MISSING_OUTPUT` — exited 0 but a declared output is missing                        |
-| `124`       | `TIMEOUT` — killed after exceeding `timeout`                                        |
-| `126`/`127` | Not executable / command not found                                                  |
-| `128+N`     | Killed by signal N                                                                  |
+| Code | Meaning |
+| --- | --- |
+| `0` | Run succeeded; executed successful steps passed declared-output checks |
+| `1-63` | Author-declared errors; failing step codes pass through |
+| `64` | Invalid invocation or supplied parameter |
+| `65` | Malformed or corrupt input/package |
+| `70` | Runtime or internal failure |
+| `77` | Protected-package licence is unusable |
+| `78` | Invalid manifest |
+| `79` | Valid licence lacks a usable grant for this protected build |
+| `120` | `MISSING_OUTPUT`: a step exited 0 without a declared output |
+| `121` | `CACHE_INPUT_CHANGED`: conflicting shared-cache replacement detected |
+| `124` | `TIMEOUT` |
+| `126` / `127` | Not executable / command not found |
+| `128+N` | Signal termination or run cancellation |
 
-**77 and 79 are different problems.** For a protected package, 77 means the licence itself is
-unusable — missing, expired, wrong machine, or bad signature — and you fix it by installing a good
-one. 79 means the licence is fine but does not authorize *this protected package*: no grant, an
-expired one, or one issued for a different build. Plaintext directories and plain packages never
-enter either gate. Only the issuer can fix a 79, so a script seeing it should ask for a (re)grant
-rather than re-check the licence file.
+CLI argument-parser errors can exit 2. Skipped or filtered steps do not receive fresh output
+checks, so run success does not prove their outputs exist.
 
-**Exit 0 is not enough.** If a step declares `outputs` and any is missing, the step fails with 120:
+For protected packages, fix 77 by installing a valid licence. Fix 79 by requesting a matching
+grant from the issuer. Pipeline directories and plain packages do not consult licences.
 
-```console
-$ flowrs run liar -i input -w work4 -t miss -e prepare
-    error Step 'prepare' exited 0 but didn't produce its declared outputs:
-  - /tmp/work4/miss/prepared.txt
+Failing step codes pass through verbatim, including codes outside the author band. An undeclared
+step exit 77 can therefore resemble a licence failure. Read `status.json` to identify the failing
+step and its code.
 
-This is a silent failure: the step script reported success but failed to write expected outputs. Check the step script for errors.
-     fail 26/08/24 13:20:02 [prepare] exit 120
-    error Pipeline failed: 0 completed, 1 failed, 0 skipped, 0 cancelled in 128ms
-```
+## Built-in input-health codes
 
-The bands are disjoint by design: because your **declared** codes stop at 63, a wrapper reading only
-an exit status can always tell your `NO_INPUT_DATA` from a licence failure.
+These names can be passed to `die` without an `[[errors]]` declaration.
 
-**That covers declared codes, not every code a step can produce.** FlowRs passes a failing step's
-exit code through verbatim, so a step that exits 77 — a tool it called returned 77, or a stray `exit
-77` — makes `flowrs run` exit 77, indistinguishable from a licence failure to a caller reading only
-the status. The pass-through is deliberate: an undeclared code is the only thing that step told you.
-Two ways to stay clear of it:
+| Code | Name | Meaning |
+| --- | --- | --- |
+| 100 | `NOT_GZIP` | Not gzip-compressed |
+| 101 | `DOUBLE_GZIPPED` | Compressed twice |
+| 102 | `UTF8_BOM` | UTF-8 byte-order mark |
+| 103 | `UTF16_ENCODING` | UTF-16 input |
+| 104 | `CRLF_LINE_ENDINGS` | Reserved; health helpers do not emit it |
+| 105 | `BINARY_CONTENT` | Null bytes in text |
+| 106 | `BAD_FASTQ_SHAPE` | Invalid FASTQ shape |
+| 107 | `BAD_FASTA_SHAPE` | Invalid FASTA shape |
+| 108 | `UNREADABLE` | Missing or unreadable input |
+| 109 | `INCOMPLETE_GZIP` | Truncated gzip encountered during a depth check |
 
-- Declare the codes you care about in `[[errors]]`, keeping them in `1`–`63` where the guarantee
-  holds.
-- When a wrapper must be certain, read `out/status.json` — it names the failing step alongside its
-  code, so no code is ambiguous.
-
----
+See [Stdlib](stdlib.md#check-input-health) for checks and their inspection limits.
 
 ## Machine-readable diagnostics
 
-`compile` and `inspect` accept `--json`, which puts a **diagnostics envelope** on stdout. It exists
-for automated authoring: a generator or an agent gets each failure as data, with a stable code and a
-coordinate into `manifest.toml`, instead of parsing prose.
+Use `flowrs compile DIR --json` for a diagnostic envelope on stdout:
 
-**All structural findings are reported in one run**, the way a compiler does — so fixing a manifest
-is one edit rather than a round trip per mistake:
-
-```console
-$ flowrs compile ./my_pipeline --json
+```json
 {
   "ok": false,
   "exit_code": 78,
   "diagnostics": [
     {
       "code": "unknown_dependency",
-      "field": "steps.aling.depends_on",
-      "ref": "trimm",
-      "message": "Step 'aling' depends on 'trimm', which does not exist.\n\nAvailable steps: aling, qc\n\nCheck for typos in the depends_on list.",
-      "hint": "declared steps are: aling, qc"
-    },
-    {
-      "code": "retry_limit_exceeded",
-      "field": "steps.qc.retries",
-      "ref": "200",
-      "message": "Step 'qc' retry count 200 exceeds maximum of 10",
-      "hint": "the maximum is 10"
-    },
-    {
-      "code": "unknown_hook_error_code",
-      "field": "pipeline.hooks.on_error.NOSUCH",
-      "ref": "NOSUCH",
-      "message": "[pipeline.hooks.on_error] has a hook for 'NOSUCH', which is neither a declared [[errors]] code nor an engine built-in. …",
-      "hint": "known error codes are: BAD_FASTA_SHAPE, BAD_FASTQ_SHAPE, …"
+      "field": "steps.analyze.depends_on",
+      "ref": "prepare",
+      "fatal": true,
+      "message": "Dependency is not declared"
     }
   ]
 }
 ```
 
-The order is deterministic — checks run in a fixed sequence, and findings within one check appear in
-the order found — so the same manifest always produces the same array.
+Compile success is `{"ok":true,"exit_code":0,"diagnostics":[]}`.
+`inspect --json` instead returns the manifest projection on success and the envelope on failure.
+Human progress goes to stderr. Run has no `--json`; consume `status.json`.
+Argument-parser errors can exit 2 with usage on stderr and no JSON document.
 
-The human message still goes to **stderr**, every finding numbered, and a *single* finding prints
-with no count or numbering. The exit code is untouched: `78` for a bad manifest, `64` for a bad
-invocation. Without `--json`, stdout stays empty.
+| Field | Contract |
+| --- | --- |
+| `ok`, `exit_code`, `diagnostics` | Envelope fields; exit_code matches the process result |
+| `code` | Stable diagnostic identifier |
+| `field` | Stable dotted manifest path when present |
+| `fatal` | Present as true when dependent checks could not run |
+| `ref`, `line` | Advisory offending value and one-based parse-error line |
+| `message`, `hint` | Advisory prose; do not parse or match wording |
 
-**What is a contract, and what is not:**
+Validation can report multiple findings. A parse failure reports one; a fatal finding can hide
+dependent findings. Fix the reported problems and validate again.
 
-| Field | | |
-| --- | --- | --- |
-| `code` | **stable** | Match on this. Renaming or removing one is a breaking change |
-| `field` | **stable** when present | A dotted path into `manifest.toml`. Omitted for a whole-file problem |
-| `exit_code` | **stable** | Always equal to the process's own exit status |
-| `fatal` | **stable** when present | `true` when this finding left later checks without a subject, so the list may be incomplete. Absent otherwise — never `false` |
-| `ref` | advisory | The single offending value or name, when there is one |
-| `line` | advisory | 1-based line, for a raw TOML parse failure |
-| `message` | advisory | Human prose. Reworded freely between releases — never parse it |
-| `hint` | advisory | Deterministic facts ("declared steps are: …"), never speculative advice |
-
-**`fatal` marks an incomplete list.** Some failures take away the subject a later check needed — an
-empty `[steps]` table, a profile naming an undeclared parameter, an unresolvable `depends_on`. Those
-carry `fatal: true`, and the checks that needed what they named were skipped rather than run against
-something that is not there. Fix them and validate again to see what they were hiding.
-
-It does not mean the array is length one, or that collection stopped: two unresolvable dependencies
-are two diagnostics, each `fatal`, because each is a separate mistake.
-
-A check whose subject an earlier check already rejected is **skipped**. With an unresolvable
-`depends_on` the cycle check is not attempted, since everything it would report follows from the
-dependency already named — the envelope never carries an artifact of a check that could not run. The
-skip is as narrow as the dependency: an unresolvable `depends_on` does not suppress the cache
-checks, and an undeclared profile parameter does not suppress the check on your
-`[params.X.<profile>]` keys, because those read your own declarations rather than the missing thing.
-
-**One limitation: a TOML parse failure carries exactly one diagnostic.** Syntax errors and duplicate
-tables are rejected before validation sees the document, and the parser stops at the first problem.
-The envelope shape is unchanged; the array is just length one.
-
-On success `compile --json` emits `{"ok": true, "exit_code": 0, "diagnostics": []}`, so a caller can
-branch on one field. `inspect --json` differs: on success it prints its manifest projection with
-**no** envelope — a second JSON document on the same stream would break every parser — and emits the
-envelope only on failure.
-
-**What `compile` checks, and what it cannot.** It validates everything knowable from the manifest
-text: the schema, the step graph including cycles, the shape of every constraint expression, and
-every declared `default` against its own type, `enum`, and bounds. A `default = 500` under `max =
-100` fails `compile` with exit 78 rather than surfacing mid-run, as do bounds admitting no value and
-an `enum` entry of a type the param does not declare.
-
-Six codes are outside its reach. Five describe a value from *outside* the manifest —
-`unknown_param`, `readonly_override`, `config_unreadable`, `invalid_param_override`,
-`missing_required_param` — and one needs a constraint evaluated against resolved values:
-`constraint_failed`. `run` reports those as prose, since it has no `--json`; `status.json` is its
-machine-readable record.
-
-One subtlety on bounds. A profile override may legitimately *widen* one, so `max = 100` in
-`[params.DEPTH]` with `max = 1000` under `[params.DEPTH.ngs]` makes `default = 500` correct whenever
-`ngs` is detected. `compile` therefore checks one **window** per declared profile, each value
-against the bounds in force alongside it, plus the base pair alone whenever a run can resolve no
-profile at all — which is exactly when nothing declares `profiles`. A default illegal in every
-window is reported once.
-
-So a base `default` that every profile overrides is never checked against base bounds no run can
-read, since an author may keep a sentinel there deliberately.
-
-#### Diagnostic codes
-
-`src/foundation/diagnostic/codes.rs` is the single definition; a test asserts this table lists every
-code it declares.
+## Diagnostic codes
 
 <!-- BEGIN DIAGNOSTIC CODES -->
 **Whole-manifest and syntax**
@@ -177,8 +105,8 @@ code it declares.
 | `retry_limit_exceeded` | A retry count exceeds the maximum, on a step, in `[defaults]`, or on an `[[errors]]` entry. |
 | `invalid_threads_weight` | A step's `threads_weight` is 0. |
 | `threads_weight_on_fixed` | A step declares `threads_weight` alongside a fixed `threads = <int>`. |
-| `invalid_output_path` | An `outputs` path is empty, relative without a variable, or uses an undeclared variable. |
-| `output_in_input_dir` | An `outputs` path writes into `${INPUT_DIR}`, which is mounted read-only. |
+| `invalid_output_path` | An `outputs` path is empty, has traversal components, uses an invalid variable root, or does not match the step's scalar/item scope. |
+| `output_in_input_dir` | An `outputs` path uses `${INPUT_DIR}`, which scripts must not modify. |
 
 **Collections and scatter**
 
@@ -206,16 +134,16 @@ code it declares.
 | `invalid_param_increment` | A parameter increment is non-positive, non-finite, or used with a non-numeric type. |
 | `unknown_param_field` | A key inside a `[params.<name>]` table is a scalar where a profile-override table was expected. |
 | `invalid_profile_override` | A `[params.<name>.<profile>]` table does not have the shape of a profile override. |
-| `removed_const_field` | `const` was used. It no longer exists; `readonly = true` with a `default` replaces it. |
+| `removed_const_field` | The unsupported const field was used; declare readonly and a default. |
 | `bounds_violation` | A value is outside the `min`/`max`/`exclusive_min`/`exclusive_max` in force. |
 | `unsatisfiable_bounds` | The bounds in force admit no value at all, e.g. `min = 100` with `max = 10`. |
 | `enum_violation` | A value is not in the param's `enum`. |
-| `enum_type_mismatch` | An `enum` entry is not of the param's declared `type`, so it can never be selected. |
+| `enum_type_mismatch` | An enum entry cannot be coerced to the parameter's declared type. |
 | `param_type_mismatch` | A value is not of the param's declared `type`, and cannot be coerced to it. |
 | `unknown_param` | `-p` or `-c` names a param the manifest does not declare. |
-| `missing_required_param` | A declared param has no default, no detected value, and no `-p`/`-c` override. |
+| `missing_required_param` | No supplied, resumed, detected, profile-default, or base-default value resolves a declared parameter. |
 | `readonly_override` | `-p` or `-c` tries to override a `readonly` param. |
-| `readonly_without_default` | A `readonly` param has no default, so nothing can ever give it a value. |
+| `readonly_without_default` | A readonly parameter lacks a default in a reachable profile or base configuration. |
 
 **Constraints**
 
@@ -224,7 +152,7 @@ code it declares.
 | `invalid_constraint_expr` | A `[[constraints]]` expression is not a single supported comparison. |
 | `constraint_op_unsupported` | A constraint's operator is not supported for the operand's type. |
 | `constraint_unknown_param` | A constraint references a param that is not declared. |
-| `constraint_param_unresolvable` | A constraint references a param that is not guaranteed to resolve to a value. |
+| `constraint_param_unresolvable` | A referenced parameter lacks a default in a reachable profile or base configuration. |
 | `constraint_failed` | A constraint's `when` held and its `require` did not. |
 
 **Detection**
@@ -233,23 +161,23 @@ code it declares.
 | --- | --- |
 | `invalid_detector` | A `detector` is empty, contains a path separator, or contains `..`. |
 | `missing_detector_script` | A declared `detector` is not present under `bin/`. |
-| `detector_readonly` | A param declares both `detector` and `readonly`: a value a script recomputes each run is not a named constant. |
-| `detector_in_profile_override` | A `detector` appears inside `[params.<name>.<profile>]`. Every detector runs before any category is known, so a per-profile one could never apply. |
-| `runner_name_collision` | Two runners resolve to one unit name, and so to one log file: two detector scripts, or two scripts in one hook phase, whose names differ only by extension. |
+| `detector_readonly` | A parameter combines detector and readonly. |
+| `detector_in_profile_override` | A detector is declared inside a profile override, where detectors are unsupported. |
+| `runner_name_collision` | Runner names share a log path or gather manifest, a scattered step uses the detector log namespace, or a scalar log file conflicts with a scattered log directory. |
 
 **Profiles**
 
 | Code | Raised when |
 | --- | --- |
-| `multiple_profiled_params` | More than one param declares `profiles`. A run resolves one category, so a second would make every profile-specific default ambiguous. |
+| `multiple_profiled_params` | More than one parameter declares profiles. |
 | `profiles_without_domain` | A non-boolean profiled param has no `enum` declaring the values its profiles must partition. |
-| `profile_empty` | A declared profile has no member values, so it can never be selected. |
-| `profile_value_not_in_enum` | A profile member value is not in the profiled param's `enum`, so it can never be selected. |
-| `profile_value_duplicated` | A value is claimed twice — by two profiles, which makes every profile-specific default ambiguous, or twice by one profile. The message says which. |
+| `profile_empty` | A profile's member list is empty. |
+| `profile_value_not_in_enum` | A profile member is outside the selector's domain. |
+| `profile_value_duplicated` | A value is listed more than once within or across profiles. |
 | `profile_value_unassigned` | A value the profiled param can take belongs to no profile. The categories must partition its whole domain, so a run could otherwise resolve no category at all. |
-| `unknown_profile_override` | A `[params.<name>.<profile>]` override names a profile no param declares, so it never applies. |
-| `profile_override_on_profiled_param` | The profiled param carries a category-keyed default of its own. It *produces* the category, so the override could never apply. |
-| `profile_override_on_detected_param` | A param with a `detector` carries a category-keyed default. Detection outranks every declared default, so the override could never win. |
+| `unknown_profile_override` | A profile override names an undeclared profile. |
+| `profile_override_on_profiled_param` | The profile selector has a profile override of its own. |
+| `profile_override_on_detected_param` | A parameter combines a detector with a profile override. |
 
 **Errors and hooks**
 
@@ -269,12 +197,12 @@ code it declares.
 | --- | --- |
 | `cache_dir_missing` | A step sets `cache = true` but the pipeline declares no `[pipeline] cache_dir`. |
 | `invalid_cache_dir` | `[pipeline] cache_dir` is empty, is not a single relative segment, or is a name FlowRs owns inside a run directory. |
-| `cache_incompatible_step` | A step combines `cache = true` with a key that makes its result unreusable. |
+| `cache_incompatible_step` | A cached step is teardown or uses a trigger rule other than all_success. |
 | `cache_key_unknown_param` | A `cache_key` entry names a param that is not declared. |
-| `cache_key_readonly_param` | A `cache_key` entry names a `readonly` param, whose change the resume drift gate cannot see. |
+| `cache_key_readonly_param` | A cache key names a readonly parameter. |
 | `cache_output_collision` | Two cached steps declare the same `${CACHE_DIR}` filename as an output. |
 | `uncached_cache_writer` | A step declares an `outputs` path under `${CACHE_DIR}` without setting `cache = true`. |
-| `removed_cache_dir_variable` | An `outputs` path uses `${CACHE_DIR_<STEP>}`, which no longer exists. |
+| `removed_cache_dir_variable` | An output uses the unsupported CACHE_DIR_<STEP> variable form. |
 
 **Invocation**
 
