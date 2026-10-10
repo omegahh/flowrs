@@ -6,20 +6,28 @@ that exits zero; the stdlib is optional.
 
 ## Unit Environment
 
-Every unit receives these variables:
+FlowRs supplies the following variables to steps, detectors, and hooks:
 
 | Variable | Meaning |
 | --- | --- |
-| INPUT_DIR | Read-only input directory from -i |
-| OUT_DIR | Unit output directory |
+| INPUT_DIR | Input directory from -i; scripts must not modify it |
+| OUT_DIR | Run output directory |
 | TMP_DIR | Run scratch directory |
-| LOG_DIR | Unit log directory |
+| LOG_DIR | Run log directory |
 | WORK_DIR | Work directory from -w |
 | FLOWRS_UNIT | Unit name |
 | FLOWRS_UNIT_KIND | step, hook, or detector |
 | THREADS | Threads granted to a step or detector; hooks receive 1 without holding a permit |
 | FLOWRS_VERBOSITY | 0 through 3, from -q, normal, -v, and -vv |
 | FLOWRS_ERROR_MAP | JSON map from error names to exit codes |
+
+Before starting a unit, the engine sets OMP_NUM_THREADS, OMP_THREAD_LIMIT,
+OPENBLAS_NUM_THREADS, MKL_NUM_THREADS, BLIS_NUM_THREADS, VECLIB_MAXIMUM_THREADS,
+NUMEXPR_NUM_THREADS, NUMEXPR_MAX_THREADS, RAYON_NUM_THREADS, and POLARS_MAX_THREADS to THREADS.
+It sets OMP_DYNAMIC and MKL_DYNAMIC to FALSE. These replace inherited values and apply before
+library imports. They configure individual pools: divide THREADS among multiprocessing workers
+and set each worker's native limits before imports. Tool flags and explicit pool settings must
+also honour the grant.
 
 These variables are present only when applicable:
 
@@ -37,8 +45,8 @@ These variables are present only when applicable:
 Check optional variables before use. Do not assume a scattered item id is a safe path component.
 Use ITEM_DIR for item outputs.
 
-Every resolved parameter is exported under its uppercased name. Before a step runs, every declared
-parameter must have a supplied, resumed, detected, profile-default, or base-default value. Supply
+Resolved parameters are exported under uppercase names. Before a step runs, declared
+parameters must have a supplied, resumed, detected, profile-default, or base-default value. Supply
 -p or -c when no other tier provides a value.
 
 The engine drops inherited variables whose names contain SECRET, TOKEN, PASSWORD, PASSWD,
@@ -50,9 +58,10 @@ engine variables.
 
 ## Language Loading
 
-- Bash: BASH_ENV loads stdlib/bash/flowrs.sh before the script. Use bash with set -euo pipefail.
+- Bash: when the helper file exists, BASH_ENV loads stdlib/bash/flowrs.sh in non-interactive Bash. Use bash with set -euo pipefail.
 - Python: PYTHONPATH includes stdlib/python and optional lib/python. Import flowrs.
-- R: R_PROFILE_USER loads stdlib/r/flowrs.R. Use the functions directly.
+- R: when the helper file exists, R_PROFILE_USER loads stdlib/r/flowrs.R unless startup options
+  disable it. Use the functions directly in that setup.
 - C++: write `#include "flowrs.hpp"`; compile with C++17, `-Istdlib/cpp`,
   `-Istdlib/cpp/vendor`, and `-lz`. The scaffold Makefile supplies these flags.
 
@@ -80,8 +89,8 @@ Use these helpers:
 | R | log_info, log_warn, log_debug, log_trace |
 | C++ | flowrs::Logger methods info, warn, debug, trace |
 
-Do not use a log tag as the only failure signal. A step fails only when its exit code is non-zero
-or a declared output is missing.
+Do not use a log tag as the only failure signal. Use a nonzero exit or `die` to fail the script;
+missing declared outputs also fail the step after exit 0.
 
 ## Errors
 
@@ -102,7 +111,7 @@ code; the default is 1.
 | R | die("CODE", "MESSAGE") |
 | C++ | log.die("CODE", "MESSAGE") |
 
-Use the code name, never a hard-coded number. A typo in an undeclared uppercase name becomes a
+Use the declared code name rather than a hard-coded number. A typo in an undeclared uppercase name becomes a
 plain message and exits 1.
 
 ## Detectors
@@ -122,36 +131,58 @@ Use report_param in Bash, Logger().report_param in Python, report_param in R, an
 once. Stdout is not read for values. A duplicate or invalid answer fails resolution. A detector that
 reports nothing uses the parameter's declared default when one exists; without a default, resolution fails.
 
-An explicit -p or -c value skips the detector. A resume baseline also skips it. A detector result is
+Explicit or resumed values bypass detection for that parameter; a script shared by other unsupplied
+parameters may still run. Nonzero exits and timeouts fail even with a base default. A detector result is
 validated against type, enum, and bounds before any step starts.
 
 ## Hooks
 
 Hooks are units with FLOWRS_UNIT_KIND=hook. They receive the same paths and logging helpers.
-Terminal hooks also receive:
+They run asynchronously: do not use `on_start` to prepare files steps need. Detectors and `on_start`
+receive no resolved parameters. Later hooks use resolved parameters when resolution succeeded.
+Outcome variables depend on the hook phase:
 
-| Variable | Meaning |
+| Variable | Supplied to |
 | --- | --- |
-| EXIT_CODE | Final run exit code; 0 for on_success |
-| FAILED_STEP | Failed step name when a step failed |
-| ERROR_CODE | Error code for an on_error hook |
-| CANCELLED | Present as 1 when a signal cancelled the run |
-| CANCELLED_BY | Signal number when cancelled |
+| EXIT_CODE | on_success as 0; on_failure when known |
+| FAILED_STEP | on_failure when a step failed |
+| ERROR_CODE | on_error, with the resolved error name |
+| CANCELLED | on_failure as 1 when a signal cancelled the run |
+| CANCELLED_BY | on_failure with the cancellation signal number |
 
-Hooks do not hold thread permits. Hook failure never changes the run result. Cancellation does not
-trigger a new on_error hook; hooks already running are allowed to finish. Use a teardown step when
-delivery failure must fail the run.
+These hook outcome names are reserved parameter names. Only the current phase supplies their values;
+absent fields are not inherited from the invoking environment.
+
+Hooks do not hold thread permits. Hook failure does not change the run result. Cancellation does not
+trigger a new on_error hook; hooks already running are allowed to finish. The invocation waits for
+started hooks before its final summary and scratch cleanup; each script has a five-minute timeout.
+Missing scripts have skipped records; process launch failures only warn. Do not depend on hook
+delivery. Use a teardown step when delivery failure must fail the run.
 
 ## Configuration
 
 | Language | Configuration |
 | --- | --- |
 | Bash | get_config KEY DEFAULT, has_config KEY, get_config_int, get_config_bool |
-| Python | get_config(key, default=None, cast=None), has_config; Context.get_config |
+| Python | get_config(key, default=None, cast=None), has_config, get_config_int, get_config_bool; Context.get_config |
 | R | get_config, has_config, get_config_int, get_config_bool |
 | C++ | `auto ctx = flowrs::Context::from_env();` then `ctx.get_config(key, fallback)`, `ctx.has_config(key)`, `ctx.get_config_int`, `ctx.get_config_num`, `ctx.get_config_bool` |
 
-Parameter keys are case-insensitive and resolve to the uppercased environment variables.
+Parameter keys are case-insensitive and resolve to uppercase environment variables.
+Config getters read the live environment, including Context.get_config/has_config in Python;
+Context path attributes are snapshots from from_env().
+
+- Bash get_config_bool is a status predicate that prints nothing: use if get_config_bool KEY; then.
+  Do not compare its command-substitution output with true.
+- Bash, R, and C++ boolean getters recognize true, 1, and yes case-insensitively; other non-empty
+  values are false. Unset or empty values use the fallback.
+- Python get_config_bool strips whitespace and recognizes 1/true/yes/y/on and 0/false/no/n/off.
+  Unset or empty uses the fallback; other values raise ValueError.
+- Python get_config_int (or cast=int) raises ValueError for malformed strings. Bash and C++ integer
+  getters accept leading integer prefixes; R uses as.integer and can truncate numeric strings.
+  Their integer fallbacks cover failed conversion, not strict whole-string validation.
+- Generic get_config treats an empty value as missing in Bash/R and as an empty value in Python/C++.
+  has_config is false for an unset or empty value in these languages.
 
 ## Validation And Commands
 
@@ -167,7 +198,7 @@ child code; use `set -e` or handle the result.
 
 ## Sequence And Files
 
-The common health and probe helpers exist in every language, but sequence and file helpers differ.
+The common health and probe helpers exist in Bash, Python, R, and C++, but sequence and file helpers differ.
 Use only the surface for the language of the unit:
 
 | Language | Sequence and file helpers |
@@ -216,8 +247,8 @@ deeply. A file ending before the requested count is healthy; an incomplete recor
 ## Outputs And Scatter
 
 Write scalar outputs below OUT_DIR, or below CACHE_DIR when cached. Write scattered outputs below
-ITEM_DIR even when cached; the engine selects the item's root. Declare every output in the step
+ITEM_DIR even when cached; the engine selects the item's root. Declare output files in the step
 manifest.
 
-FLOWRS_ITEM_FILE contains id, index, key, and every source field. FLOWRS_GATHER_MANIFEST lists the
+FLOWRS_ITEM_FILE contains id, index, key, and the source fields. FLOWRS_GATHER_MANIFEST lists the
 instances a gather step must expect; item outcomes are in status.json.
