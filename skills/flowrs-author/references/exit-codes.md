@@ -4,7 +4,7 @@
 
 | Code | Meaning |
 | --- | --- |
-| 0 | Success and every declared output exists |
+| 0 | Run succeeded; executed successful steps passed declared-output checks |
 | 1–63 | Author-defined [[errors]] codes; passed through |
 | 64 | Invalid invocation or value from the invocation |
 | 65 | Malformed or corrupt input data or package |
@@ -12,16 +12,20 @@
 | 77 | Protected package licence is invalid or unusable |
 | 78 | Manifest is invalid |
 | 79 | Valid licence lacks a grant for the protected package |
-| 100–119 | Built-in input-health codes |
+| 100–119 | Reserved input-health band; 100–109 are assigned |
 | 120 | Declared output missing after exit 0 |
+| 121 | Conflicting shared-cache replacement detected; resolve the conflict and rerun |
 | 124 | Step timeout |
 | 126 | Command found but not executable |
 | 127 | Command not found |
-| 128+N | Process killed by signal N |
+| 128+N | Signal termination or run cancellation |
 
 The author band is 1 through 63. Keep declared codes there. A step code is passed through
 verbatim, so an undeclared step exit 77 is indistinguishable from a licence failure when reading only
 the process code. Read status.json to identify the step.
+
+CLI argument-parser errors can exit 2. A skipped or filtered step receives no fresh output check;
+run success does not prove its outputs exist.
 
 The blame line is:
 
@@ -35,6 +39,8 @@ The blame line is:
 compile --json emits JSON on stdout for success and failure. inspect --json emits the manifest
 projection on success and the envelope only on failure. Human stderr and the process exit code are
 unchanged. run has no --json.
+Argument-parser errors can exit 2 with usage on stderr and no JSON document. Check stdout
+before parsing it.
 
 ~~~json
 {
@@ -84,8 +90,8 @@ usually yields one diagnostic because parsing stops before validation.
 | `retry_limit_exceeded` | A retry count exceeds the maximum, on a step, in `[defaults]`, or on an `[[errors]]` entry. |
 | `invalid_threads_weight` | A step's `threads_weight` is 0. |
 | `threads_weight_on_fixed` | A step declares `threads_weight` alongside a fixed `threads = <int>`. |
-| `invalid_output_path` | An `outputs` path is empty, relative without a variable, or uses an undeclared variable. |
-| `output_in_input_dir` | An `outputs` path writes into `${INPUT_DIR}`, which is mounted read-only. |
+| `invalid_output_path` | An `outputs` path is empty, has traversal components, uses an invalid variable root, or does not match the step's scalar/item scope. |
+| `output_in_input_dir` | An `outputs` path uses `${INPUT_DIR}`, where declared writes are forbidden; no read-only mount is created. |
 
 **Collections and scatter**
 
@@ -113,16 +119,16 @@ usually yields one diagnostic because parsing stops before validation.
 | `invalid_param_increment` | A parameter increment is non-positive, non-finite, or used with a non-numeric type. |
 | `unknown_param_field` | A key inside a `[params.<name>]` table is a scalar where a profile-override table was expected. |
 | `invalid_profile_override` | A `[params.<name>.<profile>]` table does not have the shape of a profile override. |
-| `removed_const_field` | `const` was used. It no longer exists; `readonly = true` with a `default` replaces it. |
+| `removed_const_field` | The unsupported const field was used; declare readonly and a default. |
 | `bounds_violation` | A value is outside the `min`/`max`/`exclusive_min`/`exclusive_max` in force. |
 | `unsatisfiable_bounds` | The bounds in force admit no value at all, e.g. `min = 100` with `max = 10`. |
 | `enum_violation` | A value is not in the param's `enum`. |
-| `enum_type_mismatch` | An `enum` entry is not of the param's declared `type`, so it can never be selected. |
+| `enum_type_mismatch` | An enum entry cannot be coerced to the parameter's declared type. |
 | `param_type_mismatch` | A value is not of the param's declared `type`, and cannot be coerced to it. |
 | `unknown_param` | `-p` or `-c` names a param the manifest does not declare. |
-| `missing_required_param` | A declared param has no default, no detected value, and no `-p`/`-c` override. |
+| `missing_required_param` | No supplied, resumed, detected, profile-default, or base-default value resolves a declared parameter. |
 | `readonly_override` | `-p` or `-c` tries to override a `readonly` param. |
-| `readonly_without_default` | A `readonly` param has no default, so nothing can ever give it a value. |
+| `readonly_without_default` | A readonly parameter lacks a default in a reachable profile or base configuration. |
 
 **Constraints**
 
@@ -131,7 +137,7 @@ usually yields one diagnostic because parsing stops before validation.
 | `invalid_constraint_expr` | A `[[constraints]]` expression is not a single supported comparison. |
 | `constraint_op_unsupported` | A constraint's operator is not supported for the operand's type. |
 | `constraint_unknown_param` | A constraint references a param that is not declared. |
-| `constraint_param_unresolvable` | A constraint references a param that is not guaranteed to resolve to a value. |
+| `constraint_param_unresolvable` | A referenced parameter lacks a default in a reachable profile or base configuration. |
 | `constraint_failed` | A constraint's `when` held and its `require` did not. |
 
 **Detection**
@@ -140,23 +146,23 @@ usually yields one diagnostic because parsing stops before validation.
 | --- | --- |
 | `invalid_detector` | A `detector` is empty, contains a path separator, or contains `..`. |
 | `missing_detector_script` | A declared `detector` is not present under `bin/`. |
-| `detector_readonly` | A param declares both `detector` and `readonly`: a value a script recomputes each run is not a named constant. |
-| `detector_in_profile_override` | A `detector` appears inside `[params.<name>.<profile>]`. Every detector runs before any category is known, so a per-profile one could never apply. |
-| `runner_name_collision` | Two runners resolve to one unit name, and so to one log file: two detector scripts, or two scripts in one hook phase, whose names differ only by extension. |
+| `detector_readonly` | A parameter combines detector and readonly. |
+| `detector_in_profile_override` | A detector is declared inside a profile override, where detectors are unsupported. |
+| `runner_name_collision` | Runner names share a log path or gather manifest, a scattered step uses the detector log namespace, or a scalar log file conflicts with a scattered log directory. |
 
 **Profiles**
 
 | Code | Raised when |
 | --- | --- |
-| `multiple_profiled_params` | More than one param declares `profiles`. A run resolves one category, so a second would make every profile-specific default ambiguous. |
+| `multiple_profiled_params` | More than one parameter declares profiles. |
 | `profiles_without_domain` | A non-boolean profiled param has no `enum` declaring the values its profiles must partition. |
-| `profile_empty` | A declared profile has no member values, so it can never be selected. |
-| `profile_value_not_in_enum` | A profile member value is not in the profiled param's `enum`, so it can never be selected. |
-| `profile_value_duplicated` | A value is claimed twice — by two profiles, which makes every profile-specific default ambiguous, or twice by one profile. The message says which. |
+| `profile_empty` | A profile's member list is empty. |
+| `profile_value_not_in_enum` | A profile member is outside the selector's domain. |
+| `profile_value_duplicated` | A value is listed more than once within or across profiles. |
 | `profile_value_unassigned` | A value the profiled param can take belongs to no profile. The categories must partition its whole domain, so a run could otherwise resolve no category at all. |
-| `unknown_profile_override` | A `[params.<name>.<profile>]` override names a profile no param declares, so it never applies. |
-| `profile_override_on_profiled_param` | The profiled param carries a category-keyed default of its own. It *produces* the category, so the override could never apply. |
-| `profile_override_on_detected_param` | A param with a `detector` carries a category-keyed default. Detection outranks every declared default, so the override could never win. |
+| `unknown_profile_override` | A profile override names an undeclared profile. |
+| `profile_override_on_profiled_param` | The profile selector has a profile override of its own. |
+| `profile_override_on_detected_param` | A parameter combines a detector with a profile override. |
 
 **Errors and hooks**
 
@@ -176,12 +182,12 @@ usually yields one diagnostic because parsing stops before validation.
 | --- | --- |
 | `cache_dir_missing` | A step sets `cache = true` but the pipeline declares no `[pipeline] cache_dir`. |
 | `invalid_cache_dir` | `[pipeline] cache_dir` is empty, is not a single relative segment, or is a name FlowRs owns inside a run directory. |
-| `cache_incompatible_step` | A step combines `cache = true` with a key that makes its result unreusable. |
+| `cache_incompatible_step` | A cached step is teardown or uses a trigger rule other than all_success. |
 | `cache_key_unknown_param` | A `cache_key` entry names a param that is not declared. |
-| `cache_key_readonly_param` | A `cache_key` entry names a `readonly` param, whose change the resume drift gate cannot see. |
+| `cache_key_readonly_param` | A cache key names a readonly parameter. |
 | `cache_output_collision` | Two cached steps declare the same `${CACHE_DIR}` filename as an output. |
 | `uncached_cache_writer` | A step declares an `outputs` path under `${CACHE_DIR}` without setting `cache = true`. |
-| `removed_cache_dir_variable` | An `outputs` path uses `${CACHE_DIR_<STEP>}`, which no longer exists. |
+| `removed_cache_dir_variable` | An output uses the unsupported CACHE_DIR_<STEP> variable form. |
 
 **Invocation**
 
