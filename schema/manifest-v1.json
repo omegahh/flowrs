@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Manifest",
-  "description": "The complete pipeline manifest parsed from manifest.toml.\n\nAn unrecognized field is a parse error, here and in every section with a fixed field list: serde\ndiscards one by default, so `retreies = 3` read as a step with no retries and said nothing. It is\nalso what makes [`diagnostics`]'s unknown-field hint reachable.",
+  "description": "The complete pipeline manifest parsed from manifest.toml.\n\nUnknown fields in sections with a fixed field list are rejected. Parameter sub-tables\nname profile overrides; their contents are checked during manifest validation.",
   "type": "object",
   "properties": {
     "collections": {
@@ -131,11 +131,11 @@
       "type": "object",
       "properties": {
         "category": {
-          "description": "Free-form label for grouping failures across runs, e.g. `quality`, `network`.\n\nDeliberately unconstrained and never interpreted: nothing in the engine branches on\nit, so a fixed vocabulary would only reject labels a vendor's dashboard finds useful.",
+          "description": "Required free-form label for grouping failures, e.g. `input`, `quality`, or `network`.\nThe label does not change control flow.",
           "type": "string"
         },
         "code": {
-          "description": "Unique error code. `A-Z`, `0-9` and `_` only: the stdlib resolves a code by looking\nthis name up verbatim in `FLOWRS_ERROR_MAP`, so any other character would be\nunreachable from `die`. Enforced in `validate::errors`.",
+          "description": "Unique error name using `A-Z`, `0-9`, and `_`; report it with the stdlib's `die` helper.",
           "type": "string"
         },
         "exit_code": {
@@ -222,7 +222,7 @@
           ]
         },
         "detector": {
-          "description": "Script under `bin/` that computes this parameter's value at run time, when nothing supplied\none.\n\nDetection sits between a `-p`/`-c` override and the declared defaults: the invocation still\nwins, and a `default` beside this is the fallback for a detector that reports nothing. Several\nparameters may name one script — it is spawned once and reports each by name.\n\nAn **explicit** field rather than something `profile_overrides` catches: `#[serde(flatten)]`\nbelow would otherwise swallow `detector = \"x.sh\"` as a profile named `detector`.\n\nNot available inside `[params.<name>.<profile>]`: every detector runs before any profile is\nknown, so a per-profile detector could never be selected. [`ProfileOverride`] omits it and\n`validate::params` says so rather than letting serde drop it silently.\n\nHow long one may run is `[pipeline] detector_timeout`, not a field here — several parameters\nmay name one script, and one spawn cannot honour two numbers.",
+          "description": "Script under `bin/` that computes a default before parameter resolution.\nExplicit or resumed values bypass detection for this parameter. Shared scripts run once\nfor the parameters needing detection. An omitted answer uses the base default with a\nwarning; an invalid answer, nonzero exit, or timeout fails the run.\nNot allowed on readonly parameters or inside profile overrides. The timeout is\n`[pipeline].detector_timeout`.",
           "type": [
             "string",
             "null"
@@ -286,7 +286,7 @@
           "format": "double"
         },
         "profiles": {
-          "description": "Categories this parameter's value maps onto, each naming the values it covers.\n\n```toml\n[params.MODE.profiles]\nfast   = [\"FAST\"]\nnormal = [\"NORMAL\", \"SENSITIVE\"]\n```\n\n**At most one parameter per pipeline carries this**, and the category it yields keys every\n*other* parameter's `[params.<name>.<profile>]` default. A profile is therefore an attribute\nof the parameter that produces the category, not a pipeline-level block: the two mechanisms —\ncomputing a value ([`Self::detector`]) and classifying a run — are independent, and either may\nappear without the other.\n\nThe union of the value-sets must **equal** the parameter's domain: its `enum`, or\n`{true, false}` for a `boolean`. No value unassigned, none claimed twice. A parameter with no\nclosed domain cannot be profiled, since there would be nothing for the union to equal.\n\nMembers are [`toml::Value`] rather than `String` so a `boolean` parameter writes\n`fast = [false]` — the values it classifies, in the type it declared.\n\nAn **explicit** field for the same reason [`Self::detector`] is: `#[serde(flatten)]` below\nwould otherwise swallow the table as a profile override named `profiles`.",
+          "description": "Categories this parameter's value maps onto, each naming the values it covers.\n\n```toml\n[params.MODE.profiles]\nfast   = [\"FAST\"]\nnormal = [\"NORMAL\", \"SENSITIVE\"]\n```\n\nAt most one parameter per pipeline declares profiles. Its selected category chooses\n`[params.<name>.<profile>]` defaults and bounds on other parameters.\n\nThe union of the value-sets must **equal** the parameter's domain: its `enum`, or\n`{true, false}` for a `boolean`. No value unassigned, none claimed twice. A parameter with no\nclosed domain cannot be profiled, since there would be nothing for the union to equal.\n\nMembers have the parameter's declared type; a boolean profile can write `fast = [false]`.",
           "type": [
             "object",
             "null"
@@ -333,11 +333,11 @@
       ]
     },
     "PipelineHooks": {
-      "description": "Lifecycle hooks for pipeline execution.\n\n**Four hooks, because an author asks four questions.** Each is a side-channel reaction: never\nsubject to `-s`/`-e`/`-k`, never in `status.json`'s step map, and its failure warns and never\nfails the run — no exceptions. Work whose success is part of what the run delivers is a *step*\n(a DAG step, or `teardown = true`), where failure semantics and targeting are available. System\ncleanup on cancellation is the engine's, guaranteed by the signal handler and the Drop chain, and\nis neither.\n\n`deny_unknown_fields` so a removed or misspelled hook name is a parse error. A silently ignored\n`on_finish` would drop the author's close-out work without saying so.",
+      "description": "Lifecycle hooks for pipeline execution.\n\nHooks notify asynchronously and their failures warn without changing the run result.\nThey are outside step selection and are recorded separately from steps. Started hooks\nare joined before the final summary, subject to a five-minute timeout per script.\nUse a step or teardown step for work whose failure must fail the run.",
       "type": "object",
       "properties": {
         "on_error": {
-          "description": "A step failed with a specific resolved error: `error_code -> [scripts]`.\n\nPurely a failure response — a cancelled step bypasses it, because the operator stopping the\nrun is not a fault.",
+          "description": "A step failed with a specific resolved error: `error_code -> [scripts]`.\n\nAlso applies to detector failures with resolved errors. Cancellation does not trigger it.",
           "type": "object",
           "additionalProperties": {
             "type": "array",
@@ -348,7 +348,7 @@
           "default": {}
         },
         "on_failure": {
-          "description": "The run did not succeed, however it ended badly — step failure, teardown delivery failure,\nor the operator's cancellation.\n\nA cancelled run's `128 + N` reaches the script as `EXIT_CODE`, alongside `FAILED_STEP` and\n`status.json`'s `cancelled_by`, so one script branches on the outcome.",
+          "description": "A run failed after the hook lifecycle started, including handled cancellation.\nReceives `EXIT_CODE` when known, `FAILED_STEP` when applicable, and\n`CANCELLED=1` plus `CANCELLED_BY` when a signal cancelled the run.",
           "type": "array",
           "default": [],
           "items": {
@@ -356,7 +356,7 @@
           }
         },
         "on_start": {
-          "description": "Announce that the run exists: fired once the pipeline is unpacked, before parameter\nresolution and the profile detector.\n\nEarliest point at which the hook scripts are readable — for a package they are inside the\nprotected payload — so it is also the earliest a hook can fire at all. A \"run started\"\nnotification sent from a DAG step would be silent for a run that died in resolution.\n\nSees the engine-provided paths but **not** resolved params: resolution has not run yet.",
+          "description": "Started after source validation and setup, before detectors and parameter resolution.\nReceives run paths but no resolved parameters; steps do not wait for it.",
           "type": "array",
           "default": [],
           "items": {
@@ -385,7 +385,7 @@
           ]
         },
         "cache_dir": {
-          "description": "Directory name, relative to `WORK_DIR`, holding results shared across runs.\n\nRequired for any step that sets `cache = true`. Declared once at the pipeline level\nrather than per step so every cached step lands in one place a user can inspect or\ndelete, and so the name is a property of the pipeline rather than a detail repeated\nat each use.",
+          "description": "Directory name, relative to `WORK_DIR`, holding results shared across runs.\n\nRequired when a step sets `cache = true`. Scalar cached outputs use `${CACHE_DIR}`;\ncached item outputs use `${ITEM_DIR}` under this root.",
           "type": [
             "string",
             "null"
@@ -399,7 +399,7 @@
           ]
         },
         "detector_timeout": {
-          "description": "Seconds to wait for any one detector script before failing the run.\n\nPipeline-level rather than per parameter because a detector is named by the *parameter* it\nanswers for, and several parameters may name one script. A timeout on the parameter would\nthen need a `max()` reconciliation to decide what the single spawn gets — one number that no\ndeclaration asked for. Declared once, it applies to each detector's own execution.\n\nDefaults to [`DEFAULT_DETECTOR_TIMEOUT_SECS`]. Raise it for detectors that scan large\ndatasets or reach a slow shared filesystem.",
+          "description": "Timeout in seconds for a detector script; defaults to 60.\nParameters sharing a detector use one execution with this timeout.",
           "type": "integer",
           "format": "uint64",
           "default": 60,
@@ -428,7 +428,7 @@
           "type": "string"
         },
         "requires": {
-          "description": "External tools and libraries the pipeline's steps invoke.\n\nAdvisory metadata: declaring a requirement does not install it, and nothing is\nchecked during a run. `flowrs inspect --check-environment` reports what is missing,\non the machine that will actually execute the steps. Activating whatever provides\nthem — a module system, a conda environment, a container — stays the operator's job;\nFlowRs only inherits `PATH`.",
+          "description": "External tools and libraries the pipeline's steps invoke.\n\nAdvisory: use `flowrs inspect --check-environment` to check presence before running.\nFlowRs does not install dependencies or check their versions.",
           "$ref": "#/$defs/Requirements",
           "default": {}
         },
@@ -495,7 +495,7 @@
       "additionalProperties": false
     },
     "Requirements": {
-      "description": "External tools and libraries a pipeline needs, grouped by how presence is established.\n\nThree groups rather than one list with a `type` field: each is probed by a different\nmechanism (a `PATH` lookup, an interpreter import, a loader query), and the TOML reads as\nthe sections a pipeline author already thinks in.\n\nVersions are deliberately absent. A constraint is only worth writing down if it can be\nchecked, and there is no portable way to ask an arbitrary bioinformatics tool its version\n— `samtools --version`, `bwa` with no argument, and `fastqc --version` disagree on both\nthe flag and the format. Recording constraints that are never enforced would be worse\nthan recording none: it reads as a guarantee. Presence is what FlowRs can honestly check,\nso presence is what the schema expresses.",
+      "description": "External tools and libraries checked by `flowrs inspect --check-environment`.\nChecks presence through PATH lookup or interpreter import, without version constraints.",
       "type": "object",
       "properties": {
         "python": {
@@ -545,7 +545,7 @@
       ]
     },
     "StepDef": {
-      "description": "A single step in the pipeline workflow.\n\nUnknown fields are refused, for the reason [`Manifest`](crate::manifest::Manifest) gives.",
+      "description": "A single step in the pipeline workflow.\n\nUnknown fields are rejected.",
       "type": "object",
       "properties": {
         "cache": {
@@ -554,7 +554,7 @@
           "default": false
         },
         "cache_key": {
-          "description": "Parameters whose values are part of this step's cache identity.\n\nOnly these participate — deliberately not every resolved param. Hashing all of them\nwould invalidate a QC step because an unrelated downstream threshold changed, which\ndefeats the point of caching. Declaring the list is the author's statement of what\nthis step actually reads.\n\nThe step's executable content and the identity of its cached upstreams are always\nincluded, so editing a script or invalidating an upstream invalidates this step\nwithout anything being declared here.",
+          "description": "Parameters whose values are part of this step's cache identity.\n\nList the non-readonly parameters that affect this step's results. Identity also includes\nexecutable content, input metadata, and relevant upstream identities. Imported libraries,\ntool versions, and unlisted parameters are outside this tracking.",
           "type": "array",
           "default": [],
           "items": {
@@ -574,7 +574,7 @@
           "type": "string"
         },
         "gather": {
-          "description": "The scattered steps this step consumes the completed results of, as one batch.\n\nDistinct from `depends_on` because the cardinality differs: a gather step waits for\n*every* instance of the named steps, and receives a generated manifest describing them all\nrather than one upstream's outputs. A step naming both is a gather step that also has scalar\nprerequisites.\n\nA scattered step is never listed here — an instance consumes its upstream's matching\ninstance, which is what `depends_on` already expresses between two steps over the same\ncollection.",
+          "description": "The scattered steps this step consumes the completed results of, as one batch.\n\nNamed steps must be scattered. This consumer waits for their item executions and receives\n`FLOWRS_GATHER_MANIFEST` listing the batch, without outcomes. It cannot also scatter;\nuse `depends_on` for paired dependencies between steps over the same collection.",
           "type": "array",
           "default": [],
           "items": {
@@ -617,7 +617,7 @@
           "minimum": 0
         },
         "scatter": {
-          "description": "Run this step once per item of a collection, rather than once.\n\nThe step name stays the same and every instance shares it for reporting; what multiplies is\nthe *execution* — each item gets its own directory, environment, cache entry, and log. See\n[`ScatterDef`] for the spelling.",
+          "description": "Run this step once per item of a collection, rather than once.\n\nEach item receives its own environment, log, and optional cache entry. Steps over the same\ncollection share item directories, so their output filenames must differ.",
           "anyOf": [
             {
               "$ref": "#/$defs/ScatterDef"
@@ -629,16 +629,16 @@
           "default": null
         },
         "teardown": {
-          "description": "If true, this step runs after the main pipeline completes (success or failure).",
+          "description": "Run after the main DAG, including after a step failure. Does not start after\ncancellation or setup failure; runs again on resume.",
           "type": "boolean",
           "default": false
         },
         "threads": {
-          "description": "Thread allocation: \"auto\" (share the available budget) or a fixed number.",
+          "description": "Thread allocation: \"auto\" (share the available budget) or a positive fixed count,\nlimited to the run budget. Scripts receive the actual allocation as `THREADS`.",
           "$ref": "#/$defs/ThreadAllocation"
         },
         "threads_weight": {
-          "description": "Relative share of the budget among `\"auto\"` steps ready in the same scheduling pass.\n\nA ratio, not a thread count: weights are meaningful only against the other members of the\ncohort, so they scale with `-@` rather than pinning a number. Two ready steps weighted 3 and\n1 split what is available 3:1 — six and two threads under `-@ 8`, three and one under `-@ 4`.\n\nAbsent means 1, which is the equal split that has always been the behaviour. A weight\ntherefore only has an effect when two or more `\"auto\"` steps are ready together and at least\none of them declares something other than 1.\n\nContradictory with a fixed `threads`, and rejected as such: a fixed cost already states the\nexact number of permits the step wants, leaving no share to divide.",
+          "description": "Relative share of the budget among `\"auto\"` steps ready in the same scheduling pass.\n\nA ratio, not a thread count: weights are meaningful only against the other members of the\ncohort, so they scale with `-@` rather than pinning a number. Two ready steps weighted 3 and\n1 split what is available 3:1 — six and two threads under `-@ 8`, three and one under `-@ 4`.\n\nDefaults to 1. Weights affect allocations when multiple auto steps are ready together.\n\nContradictory with a fixed `threads`, and rejected as such: a fixed cost already states the\nexact number of permits the step wants, leaving no share to divide.",
           "type": [
             "integer",
             "null"
@@ -761,7 +761,7 @@
           "const": "none_skipped"
         },
         {
-          "description": "Always execute regardless of upstream states",
+          "description": "No outcome condition after upstreams finish",
           "type": "string",
           "const": "always"
         }
