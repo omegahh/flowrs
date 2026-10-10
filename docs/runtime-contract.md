@@ -1,84 +1,75 @@
-## Runtime contract
+# Script environment
 
-The authoritative version ships with every pipeline as **`stdlib/CONTRACT.md`** — read that for
-the full detail. This is the summary.
+Steps, detectors, and hooks receive paths and logging helpers from FlowRs. The detailed helper
+reference ships in a scaffold as `stdlib/CONTRACT.md`.
 
-### Always present
+## Unit variables
 
-| Variable       | Meaning                                                        |
-| -------------- | -------------------------------------------------------------- |
-| `INPUT_DIR`    | The run's input directory, as given to `-i`. **Read-only**     |
-| `OUT_DIR`      | Where this step writes results. Created before the step starts |
-| `TMP_DIR`      | Scratch space; kept on failure or signal, removed on success unless `--keep-tmp` |
-| `LOG_DIR`      | Where the engine writes this step's log                        |
-| `WORK_DIR`     | The run's working directory, as given to `-w`                  |
-| `FLOWRS_UNIT`  | This unit's name — e.g. `align`, `detectors/probe_reads`, or `hooks/on_failure/notify` |
-| `FLOWRS_UNIT_KIND` | What kind of unit is running: `step`, `hook`, or `detector` |
-| `THREADS`      | Threads granted to a step or detector; hooks receive `1` without holding a permit |
-| `FLOWRS_VERBOSITY` | The run's `-q`/`-v` level, `0`–`3` quietest-first          |
+| Variable | Meaning |
+| --- | --- |
+| `INPUT_DIR` | Input directory; scripts must not modify it |
+| `OUT_DIR` | Run output directory, including the task id when supplied |
+| `WORK_DIR` | Work directory passed with `-w` |
+| `TMP_DIR` | Scratch; cleanup is attempted on handled exit unless `--keep-tmp` was supplied |
+| `LOG_DIR` | Run log directory |
+| `FLOWRS_UNIT` | Unit name, such as `align`, `detectors/probe`, or `hooks/on_failure/notify` |
+| `FLOWRS_UNIT_KIND` | `step`, `detector`, or `hook` |
+| `THREADS` | Thread allocation for this execution; hooks receive `1` |
+| `FLOWRS_VERBOSITY` | Console verbosity, `0` to `3` |
+| `FLOWRS_ERROR_MAP` | JSON mapping declared and built-in error names to exit codes |
 
-For a step or detector, `THREADS` is a grant, not a suggestion: the engine took that many permits
-from the budget and will not hand them to anyone else. A step that spawns more oversubscribes the
-machine for everything beside it. A hook receives `THREADS=1` as an expectation but holds no permit.
+Resolved parameters are exported under uppercase names: `[params.min_quality]` becomes
+`MIN_QUALITY`. Detectors and `on_start` run before resolution and do not receive those values.
+Do not put secrets in parameters; resolved values are saved in `params.json`.
 
-### Conditionally present
+Pass `THREADS` to tools that support a thread option. Native pools such as OpenMP, BLAS,
+NumExpr, Rayon, and Polars receive limits matching this value at startup. Multiple worker
+processes must divide the allocation among themselves.
 
-**Absent**, not empty, when they do not apply — so a step reading one under `set -u` fails loudly
-instead of building a path with an empty segment.
+## Conditionally present
 
-| Variable           | Present when                                                                      |
-| ------------------ | --------------------------------------------------------------------------------- |
-| `TASKID`           | The run used `-t`. Write `${TASKID:-}` if your step is optional about it          |
-| `CACHE_DIR`        | The pipeline declares `cache_dir`. One flat directory shared by every cached step |
-| `ITEM_DIR`         | The step scatters and this execution is one of its items                          |
-| `FLOWRS_COLLECTION` | The step scatters. The collection its items came from                            |
-| `FLOWRS_ITEM_ID`   | The step scatters. This item's id, as the collection file spelled it              |
-| `FLOWRS_ITEM_INDEX` | The step scatters. This item's position in the file, 0-based                     |
-| `FLOWRS_ITEM_FILE` | The step scatters. A JSON file holding this item's metadata and every column      |
-| `FLOWRS_GATHER_MANIFEST` | The step gathers. A JSON file listing every instance it is collecting       |
+These engine variables are absent when they do not apply.
 
-`FLOWRS_ERROR_MAP` is **always** set: compact JSON, `{"CODE":exit_code}`, holding your `[[errors]]`
-and the built-in input-health codes together — so an empty map never means "nothing declared".
+| Variable | Present when |
+| --- | --- |
+| `TASKID` | `-t` was supplied |
+| `CACHE_DIR` | The pipeline declares `cache_dir` |
+| `ITEM_DIR` | This is an item execution of a scattered step |
+| `FLOWRS_COLLECTION` | This step scatters; identifies the collection |
+| `FLOWRS_ITEM_ID` | This step scatters; holds the original item id |
+| `FLOWRS_ITEM_INDEX` | This step scatters; holds its zero-based collection position |
+| `FLOWRS_ITEM_FILE` | This step scatters; points to JSON item metadata |
+| `FLOWRS_GATHER_MANIFEST` | This step gathers; points to the list of gathered instances |
 
-Every resolved parameter is exported as its **uppercased name**: `[params.min_quality]` arrives as
-`$MIN_QUALITY`.
+Use `${TASKID:-}` in Bash when the task id is optional. Read item data from
+`FLOWRS_ITEM_FILE`; build output paths from `ITEM_DIR` rather than the item id.
 
-### Path setup
+## Paths and language setup
 
-`PYTHONPATH` gets `stdlib/python`, plus `lib/python` when non-empty. `R_LIBS_USER` gets
-`stdlib/r` and `lib/r` on the same rule. Both **prepend**, preserving any existing value. The
-pipeline's `bin/` is prepended to `PATH`, so a vendored tool shadows one installed on the machine.
+Scripts run in the directory from which `flowrs` was launched. Use the supplied directories
+instead of relative paths for data and outputs.
 
-`BASH_ENV` names `stdlib/bash/flowrs.sh` and `R_PROFILE_USER` names `stdlib/r/flowrs.R`. Both make
-that language's helpers implicit, and each is set only when the file exists, so a pipeline without
-one gets no dangling variable.
+Manifest `outputs` accept a leading `${OUT_DIR}`, `${WORK_DIR}`, or `${TMP_DIR}`, or an absolute
+path. `${CACHE_DIR}` requires a cached scalar step; scattered outputs require `${ITEM_DIR}`.
+Unknown variables, additional variables, and `.` or `..` components are rejected.
+See the [step reference](manifest-reference.md#stepsname--the-unit-of-work).
 
-### Working directory
+The pipeline's `bin/` precedes the existing `PATH`. Python's module path includes
+`stdlib/python/` and non-empty `lib/python/`; R's library path includes the corresponding
+R directories. Existing search paths are preserved.
 
-**A unit runs in the directory you launched `flowrs` from**, not the pipeline root — the same for a
-step, a detector, and a hook. A script writing a relative path lands it beside your shell prompt.
-That is expected, and it is why the engine hands you `OUT_DIR` and `TMP_DIR`: build paths from
-those rather than from the cwd, and a step behaves the same wherever it was launched.
+Bash loads the shipped helpers through `BASH_ENV` when the file exists. R startup loads them
+through `R_PROFILE_USER` when present, unless startup options disable it. Python scripts import
+`flowrs`; C++ steps include `flowrs.hpp` at build time. See [Stdlib](stdlib.md).
 
-### Path expansion
+## Logs
 
-In `outputs`, `${VAR}` is expanded against the run's own variables. An unknown variable is left
-literal rather than becoming empty, so a typo shows up as a path containing `${NOPE}` instead of
-a file quietly written to the wrong place. `${TASKID}` stays literal when the run had no `-t`.
+Scalar step logs are `logs/<step>.log`; scattered logs are `logs/<step>/<item-key>.log`.
+Detectors use `logs/detectors/<script-stem>.log`, and hooks use
+`logs/hooks/<phase>/<script-stem>.log`; script extensions are omitted from these names.
 
-### Logs
+Logs capture stdout and stderr, including stdlib debug and trace messages that console verbosity
+hides. Use `-v` for debug or `-vv` for trace on the console. Stdout and stderr can interleave;
+use one stream when diagnostic order matters.
 
-Each scalar step gets `logs/<step>.log`, and each scattered item gets `logs/<step>/<item>.log`,
-capturing both stdout and stderr. Detectors use `logs/detectors/<script>.log`; hooks use
-`logs/hooks/<phase>/<script>.log`. Stdlib lines are tagged
-`[FLOWRS:LEVEL]`; anything else your script prints lands there verbatim.
-
-**The log file is complete; the console is filtered.** Every tagged line reaches the file whatever
-verbosity the run used, and `-q`/`-v` only decide which also reach the terminal:
-`INFO`/`WARN`/`ERROR` by default, `log_debug` at `-v`, `log_trace` at `-vv`. So a run that finished
-badly still has its `DEBUG` detail on disk. Hooks and detectors log the same way, under the paths in
-[Read the output in the getting-started guide](getting-started.md#read-the-output).
-
-The two streams are drained concurrently, so **their relative order in the file is not guaranteed**.
-If ordering matters for a diagnostic, write both through the stdlib log helpers, which go to one
-stream.
+See [Read the result](getting-started.md#read-the-result) for the run files.
