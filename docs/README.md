@@ -21,7 +21,7 @@ contracts; the agent-facing operating instructions live in `skills/flowrs-author
 
 | Page                                            | Use it for                                                        |
 | ----------------------------------------------- | ----------------------------------------------------------------- |
-| [Manifest reference](manifest-reference.md)     | Every manifest section, field, and validation rule                |
+| [Manifest reference](manifest-reference.md)     | Manifest sections, fields, and validation rules                |
 | [Runtime contract](runtime-contract.md)         | Environment variables, paths, working directory, and logs         |
 | [Stdlib](stdlib.md)                             | Bash, Python, R, and C++ helpers and input-health checks          |
 | [Dependencies and parallelism](dependencies.md) | DAGs, trigger rules, thread budgets, scatter/gather, teardown     |
