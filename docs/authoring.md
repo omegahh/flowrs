@@ -7,10 +7,9 @@ that another operator will run.
 
 Create a working tree and inspect the generated manifest:
 
-```console
-$ flowrs create demo -d "My first pipeline"
-  success Created pipeline 'demo' with scaffold
-$ flowrs inspect demo --check-environment
+```bash
+flowrs create demo -d "My first pipeline"
+flowrs inspect demo --check-environment
 ```
 
 The tree contains the files you own and the standard library supplied by FlowRs:
