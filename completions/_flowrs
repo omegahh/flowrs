@@ -34,10 +34,10 @@ _flowrs() {
         case $line[1] in
             (run)
 _arguments "${_arguments_options[@]}" : \
-'-i+[Input data, read-only\: the engine never writes here]:DIR:_files' \
-'--input-dir=[Input data, read-only\: the engine never writes here]:DIR:_files' \
-'-w+[Everything the run writes goes here]:DIR:_files' \
-'--work-dir=[Everything the run writes goes here]:DIR:_files' \
+'-i+[Input data; scripts must treat this directory as read-only]:DIR:_files' \
+'--input-dir=[Input data; scripts must treat this directory as read-only]:DIR:_files' \
+'-w+[Base directory for run results and shared cache]:DIR:_files' \
+'--work-dir=[Base directory for run results and shared cache]:DIR:_files' \
 '-t+[Name the run, putting its outputs in WORK_DIR/TASKID/]:ID:_default' \
 '--task-id=[Name the run, putting its outputs in WORK_DIR/TASKID/]:ID:_default' \
 '-c+[Load parameters from a JSON, TOML, or KEY=VALUE file]:FILE:_default' \
@@ -55,7 +55,7 @@ _arguments "${_arguments_options[@]}" : \
 '--max-in-flight=[Cap how many items of a scattered step run at once]:N:_default' \
 '--tmp-dir=[Put temporary files here instead of OUT_DIR/tmp]:PATH:_files' \
 '(-s --start-step -e --end-step -k --skip-steps)--resume[Continue a prior run, skipping steps that already completed]' \
-'--force[Allow a --resume override that a completed step'\''s cache key covers]' \
+'--force[Accept input or cache-key parameter changes when resuming]' \
 '--keep-tmp[Keep temporary files after the run finishes]' \
 '-q[Suppress all output except errors]' \
 '--quiet[Suppress all output except errors]' \
