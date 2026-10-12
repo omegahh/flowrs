@@ -179,8 +179,14 @@ detector = "probe_reads.sh"
 default = 150
 ```
 
-The detector receives `-i INPUT_DIR -o OUT_DIR` and the unit environment, without resolved
-parameters. Report a value to stderr:
+The detector receives `-i INPUT_DIR -o OUT_DIR` and the unit environment, including validated
+parameters that need neither detection nor profile overrides. Supplied or resumed values are
+available even when that parameter declares a detector. A detector's unsupplied fallback default
+and any parameter with profile overrides remain unavailable. Every detector receives the same
+snapshot; answers from one detector do not become inputs to another. See the
+[script environment](runtime-contract.md#unit-variables) for the resolution rules.
+
+Report a value to stderr:
 
 ```bash
 report_param READ_LENGTH 250
