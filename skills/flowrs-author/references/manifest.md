@@ -141,7 +141,12 @@ value. A readonly parameter cannot have a detector. A value at unset makes the r
 
 ### Detectors
 
-A detector receives -i INPUT_DIR -o OUT_DIR and the unit environment without resolved parameters.
+A detector receives -i INPUT_DIR -o OUT_DIR and the unit environment with a fixed snapshot of
+validated, profile-independent parameters. These come from explicit overrides, a resume baseline,
+or defaults without detectors; readonly values come from current manifest defaults. Parameters
+with profile overrides and unsupplied detector-backed parameters are absent, even if they have
+fallback defaults. Inherited values for absent parameter names are removed. Do not depend on
+another detector's answers: all detectors receive the same snapshot.
 Emit [FLOWRS:PARAM] NAME=value on stderr, once per answer. One script can answer for several
 parameters and runs once for the parameters needing detection. Explicit or resumed values bypass
 detection for those parameters; the script may still run for other parameters sharing it.
