@@ -15,11 +15,17 @@ FlowRs supplies the following variables to steps, detectors, and hooks:
 | TMP_DIR | Run scratch directory |
 | LOG_DIR | Run log directory |
 | WORK_DIR | Work directory from -w |
+| FLOWRS_PIPELINE_NAME | Pipeline name from pipeline.name |
+| FLOWRS_PIPELINE_VERSION | Pipeline version from pipeline.version |
 | FLOWRS_UNIT | Unit name |
 | FLOWRS_UNIT_KIND | step, hook, or detector |
 | THREADS | Threads granted to a step or detector; hooks receive 1 without holding a permit |
 | FLOWRS_VERBOSITY | 0 through 3, from -q, normal, -v, and -vv |
 | FLOWRS_ERROR_MAP | JSON map from error names to exit codes |
+
+Use FLOWRS_PIPELINE_NAME and FLOWRS_PIPELINE_VERSION for pipeline identity in reports and
+notifications. They preserve the manifest values, replace inherited environment values, and are
+available before parameter resolution in detectors and on_start hooks too.
 
 Before starting a unit, the engine sets OMP_NUM_THREADS, OMP_THREAD_LIMIT,
 OPENBLAS_NUM_THREADS, MKL_NUM_THREADS, BLIS_NUM_THREADS, VECLIB_MAXIMUM_THREADS,
@@ -118,7 +124,13 @@ plain message and exits 1.
 
 A detector is a file in bin/ named by a parameter's detector field. It receives -i INPUT_DIR and
 -o OUT_DIR flags. Parse flags; do not assume positional arguments. It sees unit environment variables
-but not resolved parameters.
+plus validated parameters without profile overrides: explicit or resumed values, defaults without
+detectors, and readonly constants from the current manifest. Use their uppercase environment names.
+
+Unsupplied detector-backed parameters are absent, including fallback defaults. Parameters with profile
+overrides and missing values are also absent; inherited values cannot fill them. All detectors receive
+the same snapshot, even across batches. Do not read another detector's answers as inputs. Final
+resolution checks required values and cross-parameter constraints after detection and profile selection.
 
 Report each answer on stderr:
 
@@ -138,8 +150,9 @@ validated against type, enum, and bounds before any step starts.
 ## Hooks
 
 Hooks are units with FLOWRS_UNIT_KIND=hook. They receive the same paths and logging helpers.
-They run asynchronously: do not use `on_start` to prepare files steps need. Detectors and `on_start`
-receive no resolved parameters. Later hooks use resolved parameters when resolution succeeded.
+They run asynchronously: do not use `on_start` to prepare files steps need. `on_start` runs before
+initial parameter resolution and receives no resolved parameters. Later hooks use resolved parameters
+when resolution succeeded.
 Outcome variables depend on the hook phase:
 
 | Variable | Supplied to |
