@@ -69,7 +69,7 @@ flowrs run <PIPELINE> -i <INPUT_DIR> -w <WORK_DIR> [-t <TASK_ID>]
 ```
 
 `<PIPELINE>` may be a registered name, a pipeline directory, or a `.flowpkg`. The input directory
-must already exist; the work directory is created after validation if absent.
+must exist and allow read and search access; the work directory is created after validation if absent.
 Use `-t` when several runs share one work directory; each task gets its own output directory.
 
 For parameters and run controls, see [Running](running.md). For a pipeline directory, a useful
