@@ -35,6 +35,11 @@ content. If the licence lists machines, this machine must be included; an empty 
 any machine. A valid licence without the grant is insufficient. See
 [licence installation](getting-started.md#install-a-licence-for-protected-packages).
 
+Encrypted packages require the v3 key scheme, which keeps package names and versions distinct
+even when they contain separators. Rebuild v2 packages and reissue their grants before using them
+with this build, even if the source content is unchanged. `license-gen --grant` reads the scheme
+from the supplied package and refuses unsupported schemes.
+
 Use `--sign-with private_key.pem` when packaging to add a signature verified against FlowRs'
 embedded trust key. Signing with an unrelated key does not establish trust for recipients.
 
@@ -67,6 +72,9 @@ reference to the directory, so edits there affect later runs.
 The list shows name, version, type, and file. For protected packages, the authorization marker
 indicates whether this machine has a valid licence and matching grant.
 Use `flowrs license status` for licence details.
+
+`--detailed` includes full stored package paths and checks whether each path exists, in both text
+and JSON output. Without it, managed packages use short filenames; directory paths remain unchanged.
 
 ```bash
 flowrs registry list --detailed
