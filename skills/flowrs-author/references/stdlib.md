@@ -10,7 +10,7 @@ FlowRs supplies the following variables to steps, detectors, and hooks:
 
 | Variable | Meaning |
 | --- | --- |
-| INPUT_DIR | Input directory from -i; scripts must not modify it |
+| INPUT_DIR | Input directory from -i |
 | OUT_DIR | Run output directory |
 | TMP_DIR | Run scratch directory |
 | LOG_DIR | Run log directory |
@@ -127,10 +127,11 @@ A detector is a file in bin/ named by a parameter's detector field. It receives 
 plus validated parameters without profile overrides: explicit or resumed values, defaults without
 detectors, and readonly constants from the current manifest. Use their uppercase environment names.
 
+Missing parameters independent of detection and profile selection fail before detection starts.
 Unsupplied detector-backed parameters are absent, including fallback defaults. Parameters with profile
-overrides and missing values are also absent; inherited values cannot fill them. All detectors receive
-the same snapshot, even across batches. Do not read another detector's answers as inputs. Final
-resolution checks required values and cross-parameter constraints after detection and profile selection.
+overrides are also absent; inherited values cannot fill them. All detectors receive the same snapshot,
+even across batches. Do not read another detector's answers as inputs. Final resolution checks remaining
+required values and cross-parameter constraints after detection and profile selection.
 
 Report each answer on stderr:
 
@@ -151,8 +152,8 @@ validated against type, enum, and bounds before any step starts.
 
 Hooks are units with FLOWRS_UNIT_KIND=hook. They receive the same paths and logging helpers.
 They run asynchronously: do not use `on_start` to prepare files steps need. `on_start` runs before
-initial parameter resolution and receives no resolved parameters. Later hooks use resolved parameters
-when resolution succeeded.
+detection and receives parameters independent of detection or profile selection. Later hooks use the
+complete resolved parameter set when resolution succeeded.
 Outcome variables depend on the hook phase:
 
 | Variable | Supplied to |
