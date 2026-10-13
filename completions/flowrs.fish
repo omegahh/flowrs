@@ -35,20 +35,20 @@ complete -c flowrs -n "__fish_flowrs_needs_command" -f -a "registry" -d 'Add, re
 complete -c flowrs -n "__fish_flowrs_needs_command" -f -a "inspect" -d 'Show a pipeline\'s steps, parameters, constraints, errors, and hooks'
 complete -c flowrs -n "__fish_flowrs_needs_command" -f -a "license" -d 'Inspect, install, and report on licenses'
 complete -c flowrs -n "__fish_flowrs_needs_command" -f -a "help" -d 'Print this message or the help of the given subcommand(s)'
-complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s i -l input-dir -d 'Input data; scripts must treat this directory as read-only' -r -F
-complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s w -l work-dir -d 'Base directory for run results and shared cache' -r -F
-complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s t -l task-id -d 'Name the run, putting its outputs in WORK_DIR/TASKID/' -r
-complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s c -l config -d 'Load parameters from a JSON, TOML, or KEY=VALUE file' -r
-complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s p -l param -d 'Set one parameter, overriding -c (repeatable)' -r
-complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s @ -l threads -d 'Total threads shared by all concurrent work' -r
-complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s s -l start-step -d 'Start here, dropping everything upstream' -r
-complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s e -l end-step -d 'Stop here, dropping everything downstream' -r
-complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s k -l skip-steps -d 'Skip these steps, keeping the rest of the graph' -r
-complete -c flowrs -n "__fish_flowrs_using_subcommand run" -l max-in-flight -d 'Cap how many items of a scattered step run at once' -r
-complete -c flowrs -n "__fish_flowrs_using_subcommand run" -l tmp-dir -d 'Put temporary files here instead of OUT_DIR/tmp' -r -F
-complete -c flowrs -n "__fish_flowrs_using_subcommand run" -l resume -d 'Continue a prior run, skipping steps that already completed'
-complete -c flowrs -n "__fish_flowrs_using_subcommand run" -l force -d 'Accept input or cache-key parameter changes when resuming'
-complete -c flowrs -n "__fish_flowrs_using_subcommand run" -l keep-tmp -d 'Keep temporary files after the run finishes'
+complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s i -l input-dir -d 'Input directory' -r -F
+complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s w -l work-dir -d 'Results and shared cache directory' -r -F
+complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s t -l task-id -d 'Run ID; outputs under WORK_DIR/ID' -r
+complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s c -l config -d 'Parameters from JSON, TOML, or KEY=VALUE' -r
+complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s p -l param -d 'Set a parameter (repeatable; overrides -c)' -r
+complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s @ -l threads -d 'Thread budget (default: min_threads or CPU count)' -r
+complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s s -l start-step -d 'Start at STEP, excluding upstream steps' -r
+complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s e -l end-step -d 'Stop at STEP, excluding downstream steps' -r
+complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s k -l skip-steps -d 'Skip the listed steps' -r
+complete -c flowrs -n "__fish_flowrs_using_subcommand run" -l max-in-flight -d 'Concurrent items per scatter step (within -@)' -r
+complete -c flowrs -n "__fish_flowrs_using_subcommand run" -l tmp-dir -d 'Temporary directory (default: OUT_DIR/tmp)' -r -F
+complete -c flowrs -n "__fish_flowrs_using_subcommand run" -l resume -d 'Skip completed steps (conflicts with -s/-e/-k)'
+complete -c flowrs -n "__fish_flowrs_using_subcommand run" -l force -d 'With --resume, reuse results after input/cache-key changes'
+complete -c flowrs -n "__fish_flowrs_using_subcommand run" -l keep-tmp -d 'Keep temporary files after the run'
 complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s q -l quiet -d 'Suppress all output except errors'
 complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s v -l verbose -d 'Print per-step detail; repeat for more (-vv); -q wins'
 complete -c flowrs -n "__fish_flowrs_using_subcommand run" -s h -l help -d 'Print help (see more with \'--help\')'
