@@ -8,7 +8,7 @@ flowrs run <PIPELINE> -i <INPUT_DIR> -w <WORK_DIR> [-t <TASK_ID>] [options]
 
 | Flag | Effect |
 | --- | --- |
-| `-i, --input-dir` | Existing input directory; scripts must treat it as read-only |
+| `-i, --input-dir` | Existing input directory with read and search (execute) permission |
 | `-w, --work-dir` | Work directory; created after validation if absent |
 | `-t, --task-id` | Put this run's results in `WORK_DIR/TASK_ID/`; otherwise use `WORK_DIR/` |
 | `-p, --param` | Supply `KEY=VALUE`; repeat for more parameters |
