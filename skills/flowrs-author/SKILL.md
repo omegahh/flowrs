@@ -53,7 +53,7 @@ Do not use it to develop FlowRs itself or for a different or unspecified workflo
 8. Run `flowrs inspect PIPELINE_DIR --json` when a machine-readable manifest projection or
    environment check is needed. `inspect --json` emits the projection on success and a diagnostic
    envelope on failure.
-9. Read `references/running.md`; use an existing input directory. The work directory is created
+9. Read `references/running.md`; use an input directory with read and search access. The work directory is created
    after validation when absent:
    `flowrs run PIPELINE -i INPUT_DIR -w WORK_DIR`.
 10. Read `references/status-json.md`; parse `WORK_DIR/status.json`, or
