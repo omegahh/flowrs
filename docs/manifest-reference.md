@@ -162,8 +162,9 @@ use the current manifest's defaults, including profile overrides; they cannot ha
 <a id="required-parameters"></a>
 
 A declared parameter must resolve before steps start. If no default, detector, profile default,
-or resume baseline supplies it, use `-p KEY=VALUE` or `-c FILE`. Missing parameters are reported
-together at exit 64. There is no `required = true` field.
+or resume baseline supplies it, use `-p KEY=VALUE` or `-c FILE`. Missing parameters independent of
+detection and profile selection are reported together before detection; remaining missing values are
+checked after detection and profile selection. Both checks exit 64. There is no `required = true` field.
 
 Config files accept JSON, TOML, or `KEY=VALUE` lines, selected by extension.
 Explicit `-p` values win over config values.
@@ -260,8 +261,9 @@ and passes the step's exit code through. Undeclared process exits can use other 
 step record to distinguish them from engine failures.
 
 `retryable` defaults to false, which stops retries for that declared error. When true,
-`max_retries` overrides the step retry count. Timeouts, signal exits, and missing declared outputs
-are not retried.
+`max_retries` overrides the step retry count for the current failure. It bounds total retries
+across the step; changing exit codes does not reset the count. Timeouts, signal exits, and missing
+declared outputs are not retried.
 `help_url` is optional. See [Exit codes](exit-codes.md).
 
 <a id="pipelinehooks--lifecycle-scripts"></a>
@@ -281,7 +283,7 @@ notifications: their failure warns without changing the run outcome.
 
 | Hook | When it starts |
 | --- | --- |
-| `on_start` | After pipeline loading, before parameter resolution |
+| `on_start` | After pipeline loading, before detection |
 | `on_success` | After successful main and teardown work |
 | `on_failure` | After failure or handled cancellation, once the lifecycle has started |
 | `on_error.CODE` | After a step or detector process fails with that resolved code; excludes cancellation |
@@ -290,7 +292,9 @@ Hooks run asynchronously; do not use `on_start` to prepare files required by ste
 waits for started hooks before reporting its final result; each script has a five-minute timeout.
 Early refusals before `on_start`, such as licence failure, do not fire hooks.
 
-`on_start` sees paths but no resolved parameters. `on_success` receives `EXIT_CODE=0`.
+`on_start` sees paths and parameters independent of detection or profile selection. Parameters that
+depend on detector answers or profile selection are absent. `on_success` receives `EXIT_CODE=0` and
+the complete resolved parameter set.
 `on_failure` receives `EXIT_CODE` when known and `FAILED_STEP` when applicable; cancellation
 adds `CANCELLED=1` and `CANCELLED_BY` (signal number). `on_error` receives `ERROR_CODE`.
 Outcome variables from other phases are absent.
@@ -333,6 +337,9 @@ message = "High quality requires paired mode"
 Expressions compare a parameter on the left with a literal on the right using
 `==`, `!=`, `>`, `<`, `>=`, or `<=`. If `when` is true and `require` is false, resolution fails
 at exit 64.
+
+Comparisons of `number` parameters share a tolerance of `f64::EPSILON * max(abs(left), abs(right), 1)`.
+Values within that tolerance compare equal, satisfy both `>=` and `<=`, and satisfy neither `>` nor `<`.
 
 Referenced parameters need defaults in each reachable profile or base configuration.
 Invocation-only or detector-only values do not satisfy this compile-time rule.
