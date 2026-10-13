@@ -136,8 +136,9 @@ readonly gate > -p/-c > detected > profile default > base default > unset
 
 On resume, recorded values sit below explicit overrides and above detection. Readonly parameters
 refuse explicit overrides and resolve from the current manifest's defaults, ignoring the recorded
-value. A readonly parameter cannot have a detector. A value at unset makes the run fail with exit
-64 and names the missing parameters together.
+value. A readonly parameter cannot have a detector. A value at unset makes the run fail with exit 64.
+Missing parameters independent of detection and profile selection are reported together before
+detection; remaining missing values are checked after detection and profile selection.
 
 ### Detectors
 
@@ -207,7 +208,8 @@ help_url = "https://example.invalid/no-input"
 - category is a free-form label.
 - message is static text; do not add runtime placeholders.
 - retryable defaults to false and stops retries for this declared error. When true, max_retries
-  overrides the step retry count for this code. Timeouts, signal exits, and missing declared
+  overrides the step retry count for this code, counting all retries already used by the step.
+  Changing exit codes does not reset the count. Timeouts, signal exits, and missing declared
   outputs are not retried.
 - help_url is optional.
 
@@ -262,6 +264,9 @@ message = "High quality requires paired mode"
 Use one comparison per expression. Supported operators are ==, !=, >, <, >=, and <=. The left
 side of `when` and `require` names a parameter; the right side is a literal. If `when` is true and
 `require` is false, resolution fails with exit 64.
+
+Comparisons of number parameters share a tolerance of `f64::EPSILON * max(abs(left), abs(right), 1)`.
+Within that tolerance, values compare equal rather than greater or less.
 
 The referenced parameters must have a default in each reachable validation window: use the selected
 profile's default when supplied, otherwise the base default. Without a profile selector, the base
