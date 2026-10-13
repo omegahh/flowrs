@@ -34,36 +34,36 @@ _flowrs() {
         case $line[1] in
             (run)
 _arguments "${_arguments_options[@]}" : \
-'-i+[Input data; scripts must treat this directory as read-only]:DIR:_files' \
-'--input-dir=[Input data; scripts must treat this directory as read-only]:DIR:_files' \
-'-w+[Base directory for run results and shared cache]:DIR:_files' \
-'--work-dir=[Base directory for run results and shared cache]:DIR:_files' \
-'-t+[Name the run, putting its outputs in WORK_DIR/TASKID/]:ID:_default' \
-'--task-id=[Name the run, putting its outputs in WORK_DIR/TASKID/]:ID:_default' \
-'-c+[Load parameters from a JSON, TOML, or KEY=VALUE file]:FILE:_default' \
-'--config=[Load parameters from a JSON, TOML, or KEY=VALUE file]:FILE:_default' \
-'*-p+[Set one parameter, overriding -c (repeatable)]:KEY=VALUE:_default' \
-'*--param=[Set one parameter, overriding -c (repeatable)]:KEY=VALUE:_default' \
-'-@+[Total threads shared by all concurrent work]:N:_default' \
-'--threads=[Total threads shared by all concurrent work]:N:_default' \
-'-s+[Start here, dropping everything upstream]:STEP:_default' \
-'--start-step=[Start here, dropping everything upstream]:STEP:_default' \
-'-e+[Stop here, dropping everything downstream]:STEP:_default' \
-'--end-step=[Stop here, dropping everything downstream]:STEP:_default' \
-'*-k+[Skip these steps, keeping the rest of the graph]:STEP:_default' \
-'*--skip-steps=[Skip these steps, keeping the rest of the graph]:STEP:_default' \
-'--max-in-flight=[Cap how many items of a scattered step run at once]:N:_default' \
-'--tmp-dir=[Put temporary files here instead of OUT_DIR/tmp]:PATH:_files' \
-'(-s --start-step -e --end-step -k --skip-steps)--resume[Continue a prior run, skipping steps that already completed]' \
-'--force[Accept input or cache-key parameter changes when resuming]' \
-'--keep-tmp[Keep temporary files after the run finishes]' \
+'-i+[Input directory]:DIR:_files' \
+'--input-dir=[Input directory]:DIR:_files' \
+'-w+[Results and shared cache directory]:DIR:_files' \
+'--work-dir=[Results and shared cache directory]:DIR:_files' \
+'-t+[Run ID; outputs under WORK_DIR/ID]:ID:_default' \
+'--task-id=[Run ID; outputs under WORK_DIR/ID]:ID:_default' \
+'-c+[Parameters from JSON, TOML, or KEY=VALUE]:FILE:_default' \
+'--config=[Parameters from JSON, TOML, or KEY=VALUE]:FILE:_default' \
+'*-p+[Set a parameter (repeatable; overrides -c)]:KEY=VALUE:_default' \
+'*--param=[Set a parameter (repeatable; overrides -c)]:KEY=VALUE:_default' \
+'-@+[Thread budget (default\: min_threads or CPU count)]:N:_default' \
+'--threads=[Thread budget (default\: min_threads or CPU count)]:N:_default' \
+'-s+[Start at STEP, excluding upstream steps]:STEP:_default' \
+'--start-step=[Start at STEP, excluding upstream steps]:STEP:_default' \
+'-e+[Stop at STEP, excluding downstream steps]:STEP:_default' \
+'--end-step=[Stop at STEP, excluding downstream steps]:STEP:_default' \
+'*-k+[Skip the listed steps]:STEP:_default' \
+'*--skip-steps=[Skip the listed steps]:STEP:_default' \
+'--max-in-flight=[Concurrent items per scatter step (within -@)]:N:_default' \
+'--tmp-dir=[Temporary directory (default\: OUT_DIR/tmp)]:PATH:_files' \
+'(-s --start-step -e --end-step -k --skip-steps)--resume[Skip completed steps (conflicts with -s/-e/-k)]' \
+'--force[With --resume, reuse results after input/cache-key changes]' \
+'--keep-tmp[Keep temporary files after the run]' \
 '-q[Suppress all output except errors]' \
 '--quiet[Suppress all output except errors]' \
 '*-v[Print per-step detail; repeat for more (-vv); -q wins]' \
 '*--verbose[Print per-step detail; repeat for more (-vv); -q wins]' \
 '-h[Print help (see more with '\''--help'\'')]' \
 '--help[Print help (see more with '\''--help'\'')]' \
-':pipeline -- Pipeline\: registered name, folder path, or .flowpkg file:_default' \
+':pipeline -- Registered name, directory, or .flowpkg:_default' \
 && ret=0
 ;;
 (create)
