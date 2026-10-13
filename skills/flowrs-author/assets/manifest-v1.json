@@ -356,7 +356,7 @@
           }
         },
         "on_start": {
-          "description": "Started after source validation and setup, before detectors and parameter resolution.\nReceives run paths but no resolved parameters; steps do not wait for it.",
+          "description": "Started after source validation and setup, before detectors. Receives run paths and the\nresolved parameters independent of detection or profile selection; steps do not wait for it.",
           "type": "array",
           "default": [],
           "items": {
