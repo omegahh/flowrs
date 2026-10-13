@@ -106,7 +106,7 @@ dependent findings. Fix the reported problems and validate again.
 | `invalid_threads_weight` | A step's `threads_weight` is 0. |
 | `threads_weight_on_fixed` | A step declares `threads_weight` alongside a fixed `threads = <int>`. |
 | `invalid_output_path` | An `outputs` path is empty, has traversal components, uses an invalid variable root, or does not match the step's scalar/item scope. |
-| `output_in_input_dir` | An `outputs` path uses `${INPUT_DIR}`, which scripts must not modify. |
+| `output_in_input_dir` | A declared `outputs` path uses `${INPUT_DIR}`. |
 
 **Collections and scatter**
 
