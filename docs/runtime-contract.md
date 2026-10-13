@@ -7,7 +7,7 @@ reference ships in a scaffold as `stdlib/CONTRACT.md`.
 
 | Variable | Meaning |
 | --- | --- |
-| `INPUT_DIR` | Input directory; scripts must not modify it |
+| `INPUT_DIR` | Input directory from `-i` |
 | `OUT_DIR` | Run output directory, including the task id when supplied |
 | `WORK_DIR` | Work directory passed with `-w` |
 | `TMP_DIR` | Scratch; cleanup is attempted on handled exit unless `--keep-tmp` was supplied |
@@ -30,13 +30,15 @@ come from `-p`/`-c`, a resume baseline, or a default with no detector. Readonly 
 current manifest default. Types, enums, bounds, and the readonly gate are checked before export.
 Every detector receives the same snapshot, even when detectors run in separate batches.
 
-Parameters with profile overrides, unsupplied parameters with detectors (including those with a
-fallback default), and missing values are absent from that snapshot. Inherited environment values
+Missing parameters that cannot be supplied by detection or profile selection are reported together
+before detection starts. Parameters with profile overrides and unsupplied parameters with detectors
+(including those with a fallback default) are absent from the snapshot. Inherited environment values
 for these names are removed. Detector answers are not passed to other detectors. Final resolution
-selects the profile and checks all required values and cross-parameter constraints.
+selects the profile and checks remaining required values and cross-parameter constraints.
 
-`on_start` runs before this initial resolution and receives no resolved parameters.
-Do not put secrets in parameters; resolved values are saved in `params.json`.
+`on_start` runs before detection and receives this same settled snapshot. Parameters that depend on
+detector answers or profile selection remain absent until later hooks. Do not put secrets in parameters;
+resolved values are saved in `params.json`.
 
 Pass `THREADS` to tools that support a thread option. Native pools such as OpenMP, BLAS,
 NumExpr, Rayon, and Polars receive limits matching this value at startup. Multiple worker
