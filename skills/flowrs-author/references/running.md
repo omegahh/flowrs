@@ -84,7 +84,7 @@ Required flags:
 
 | Flag | Rule |
 | --- | --- |
-| `-i, --input-dir DIR` | Existing input directory; scripts must treat it as read-only |
+| `-i, --input-dir DIR` | Existing input directory with read and search (execute) permission |
 | `-w, --work-dir DIR` | Work directory; created after validation when absent |
 
 Identity and parameters:
