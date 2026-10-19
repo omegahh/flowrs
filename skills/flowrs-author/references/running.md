@@ -1,5 +1,14 @@
 # Running FlowRs
 
+## Contents
+
+- Commands
+- Create, compile, and inspect
+- Run options
+- Licence gates and slices
+- Resume, threads, scatter, and cache
+- Signals, scratch, packaging, and registry
+
 ## Commands
 
 Use the command that matches the operation:
@@ -200,9 +209,11 @@ spelling/resolved metadata, ignoring common OS metadata files. Same-size, same-m
 Imported libraries, external tools, and unlisted parameters are outside tracking. Use a new cache
 directory or remove affected entries after these change; a new task id alone is insufficient.
 
-A cache hit is cached, not skipped. Avoid conflicting writers to shared output paths. Cache
-replacement detected at step boundaries fails with CACHE_INPUT_CHANGED (121); resolve the conflict
-and rerun. The check does not protect a process's reads during execution.
+A cache hit is cached, not skipped. Writers may replace an entry while another run uses it.
+Consumed publications are checked before and after each executing step, including teardown.
+Replacement fails the affected run with CACHE_INPUT_CHANGED (121), even if the original cache
+key is restored, and affected consumers do not publish derived cache entries. Resolve the conflict
+and rerun. Checks do not lock readers or undo a step's external side effects.
 
 ## Signals And Scratch
 
