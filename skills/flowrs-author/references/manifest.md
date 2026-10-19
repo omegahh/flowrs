@@ -1,5 +1,14 @@
 # Manifest Contract
 
+## Contents
+
+- Top-level tables
+- Pipeline and steps
+- Defaults and parameters
+- Errors and hooks
+- Collections and constraints
+- Requirements, groups, and complete example
+
 Read assets/manifest-v1.json for field names and value shapes. Validate semantic constraints with
 flowrs compile --json. Use only the fields listed here. Unknown fields are rejected.
 
@@ -148,14 +157,14 @@ or defaults without detectors; readonly values come from current manifest defaul
 with profile overrides and unsupplied detector-backed parameters are absent, even if they have
 fallback defaults. Inherited values for absent parameter names are removed. Do not depend on
 another detector's answers: all detectors receive the same snapshot.
-Emit [FLOWRS:PARAM] NAME=value on stderr, once per answer. One script can answer for several
+Emit `[FLOWRS:PARAM] NAME=value` on stderr, once per answer. One script can answer for several
 parameters and runs once for the parameters needing detection. Explicit or resumed values bypass
 detection for those parameters; the script may still run for other parameters sharing it.
 
 An omitted answer warns and uses the base default if one exists; otherwise resolution fails.
 Nonzero exits, timeouts, duplicate answers, and invalid values fail even when a default exists.
-Answers for parameters not naming the script warn and are ignored. Read references/stdlib.md
-for reporting helpers and references/status-json.md for the limits of detector records.
+Answers for parameters not naming the script warn and are ignored. Read `references/stdlib.md`
+for reporting helpers and `references/status-json.md` for the limits of detector records.
 
 ### Profiles
 
