@@ -113,10 +113,12 @@ A new task id alone does not invalidate the shared cache.
 
 ### Sharing one cache directory
 
-Compatible runs can reuse one cache directory. Avoid concurrent runs that write different results
-to the same cached output paths. Replacement detected between steps stops a run with
-`CACHE_INPUT_CHANGED` (121); rerun after resolving the conflict. Replacement during a step's
-file read may escape that check.
+Compatible runs can reuse one cache directory. Writers may replace an entry while another run
+uses it. The engine checks the consumed publications before and after each executing step,
+including teardown, and fails the affected run with `CACHE_INPUT_CHANGED` (121) if one changed.
+A replacement is detected even if the original cache key is restored. Affected consumers do not
+publish derived cache entries; rerun after resolving the conflict. These checks detect replacement
+rather than locking readers, and do not undo a step's external side effects.
 
 ## Signals and scratch
 
