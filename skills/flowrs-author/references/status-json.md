@@ -1,5 +1,13 @@
 # Reading status.json
 
+## Contents
+
+- Location and schema version
+- Top-level and step status
+- Scattered steps
+- Detector and hook records
+- Failure, resume, and consumer rules
+
 Read status.json after a run. The file is written atomically and incrementally. It is the
 machine-readable run result; console prose is not a data interface. Early validation refusals can
 leave no record. Check that the file belongs to this invocation before using a prior run's result.
