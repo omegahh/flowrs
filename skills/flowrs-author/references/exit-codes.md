@@ -1,5 +1,11 @@
 # Exit Codes And Diagnostics
 
+## Contents
+
+- Process codes
+- JSON envelope
+- Diagnostic codes
+
 ## Process Codes
 
 | Code | Meaning |
