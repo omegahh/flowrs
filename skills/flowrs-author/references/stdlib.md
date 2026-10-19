@@ -1,5 +1,13 @@
 # Step, Detector, And Hook Scripts
 
+## Contents
+
+- Unit environment and language loading
+- Logging and errors
+- Detectors and hooks
+- Configuration and validation helpers
+- Sequence, input health, outputs, and scatter
+
 Read this file before writing an executable. FlowRs runs each unit as a subprocess, captures stdout
 and stderr in a log, and uses the process exit code as the result. A script may be a plain executable
 that exits zero; the stdlib is optional.
