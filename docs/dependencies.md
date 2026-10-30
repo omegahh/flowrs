@@ -137,8 +137,8 @@ A gather execution reads `FLOWRS_GATHER_MANIFEST` for the item list:
 }
 ```
 
-Its trigger rule applies to the batch: `all_success` requires successful items; `all_done` also
-allows failed or skipped items. Item outcomes are recorded under the scattered step in
+Its trigger rule counts each item as one upstream: `all_success` requires every item to succeed,
+`one_success` any one, `all_failed` every item to fail; `all_done` allows any outcome. Item outcomes are recorded under the scattered step in
 `status.json`.
 
 Limit memory or I/O pressure with an item cap:
