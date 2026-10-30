@@ -129,6 +129,7 @@ dependent findings. Fix the reported problems and validate again.
 | Code | Raised when |
 | --- | --- |
 | `reserved_param_name` | A param name collides with an engine, system, or language environment variable. |
+| `invalid_param_name` | A param name is not a letter or `_` followed by letters, digits, or `_`. |
 | `param_name_collision` | Two param declarations differ only in case, so they name one parameter. |
 | `unknown_param_group` | A param's `group` names a group that is not declared in `[groups]`. |
 | `invalid_param_increment` | A parameter increment is non-positive, non-finite, or used with a non-numeric type. |
