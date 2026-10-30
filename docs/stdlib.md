@@ -97,7 +97,8 @@ Detectors report answers to stderr with the `[FLOWRS:PARAM]` tag:
 | C++ | `log.report_param("READ_LENGTH", "250")` |
 
 Report a parameter once per detector execution. Steps do not use this channel for parameter
-resolution. See [Detectors](manifest-reference.md#detector--a-computed-default).
+resolution. A missing, duplicate, or invalid answer, a timeout, or a missing script exits 78:
+the fix is in the pipeline's detector. See [Detectors](manifest-reference.md#detector--a-computed-default).
 
 ## Check input health
 
