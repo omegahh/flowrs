@@ -124,7 +124,8 @@ rather than locking readers, and do not undo a step's external side effects.
 
 `SIGINT`, `SIGTERM`, `SIGHUP`, and `SIGQUIT` cancel a run and stop its running step processes.
 The exit code is normally `128 + signal` (`130` for Ctrl-C); an earlier failure can retain its
-own code. `status.json` records `cancelled_by`.
+own code. `status.json` records `cancelled_by`. A second signal exits at once, removing the run's
+claim and scratch, without waiting for hooks or writing a final `status.json`.
 
 Pending main and teardown steps do not start after cancellation. Cancellation does not fire
 `on_error`; `on_failure` runs once the lifecycle has started. Started hooks are allowed to finish,
