@@ -37,7 +37,8 @@ for these names are removed. Detector answers are not passed to other detectors.
 selects the profile and checks remaining required values and cross-parameter constraints.
 
 `on_start` runs before detection and receives this same settled snapshot. Parameters that depend on
-detector answers or profile selection remain absent until later hooks. Do not put secrets in parameters;
+detector answers or profile selection remain absent until later hooks. If parameter preparation
+fails, `on_start` and `on_failure` receive no parameters. Do not put secrets in parameters;
 resolved values are saved in `params.json`.
 
 Pass `THREADS` to tools that support a thread option. Native pools such as OpenMP, BLAS,
@@ -60,7 +61,8 @@ These engine variables are absent when they do not apply.
 | `FLOWRS_GATHER_MANIFEST` | This step gathers; points to the list of gathered instances |
 
 Use `${TASKID:-}` in Bash when the task id is optional. Read item data from
-`FLOWRS_ITEM_FILE`; build output paths from `ITEM_DIR` rather than the item id.
+`FLOWRS_ITEM_FILE`; build output paths from `ITEM_DIR` rather than the item id. The engine
+creates `ITEM_DIR` before the item runs.
 
 ## Paths and language setup
 
