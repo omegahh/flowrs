@@ -338,9 +338,6 @@ Expressions compare a parameter on the left with a literal on the right using
 `==`, `!=`, `>`, `<`, `>=`, or `<=`. If `when` is true and `require` is false, resolution fails
 at exit 64.
 
-Comparisons of `number` parameters share a tolerance of `f64::EPSILON * max(abs(left), abs(right), 1)`.
-Values within that tolerance compare equal, satisfy both `>=` and `<=`, and satisfy neither `>` nor `<`.
-
 Referenced parameters need defaults in each reachable profile or base configuration.
 Invocation-only or detector-only values do not satisfy this compile-time rule.
 
