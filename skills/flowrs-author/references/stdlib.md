@@ -57,7 +57,7 @@ These variables are present only when applicable:
 | FLOWRS_GATHER_MANIFEST | The step gathers; JSON list of collected instances |
 
 Check optional variables before use. Do not assume a scattered item id is a safe path component.
-Use ITEM_DIR for item outputs.
+Use ITEM_DIR for item outputs; the engine creates it before the item runs.
 
 Resolved parameters are exported under uppercase names. Before a step runs, declared
 parameters must have a supplied, resumed, detected, profile-default, or base-default value. Supply
@@ -154,7 +154,7 @@ reports nothing uses the parameter's declared default when one exists; without a
 
 Explicit or resumed values bypass detection for that parameter; a script shared by other unsupplied
 parameters may still run. Nonzero exits and timeouts fail even with a base default. A detector result is
-validated against type, enum, and bounds before any step starts.
+validated against type, enum, and bounds before any step starts. These detector failures exit 78.
 
 ## Hooks
 
