@@ -399,11 +399,11 @@
           ]
         },
         "detector_timeout": {
-          "description": "Timeout in seconds for a detector script; defaults to 60.\nParameters sharing a detector use one execution with this timeout.",
+          "description": "Timeout in seconds for a detector script; defaults to 60, and zero is refused.\nParameters sharing a detector use one execution with this timeout.",
           "type": "integer",
           "format": "uint64",
           "default": 60,
-          "minimum": 0
+          "minimum": 1
         },
         "hooks": {
           "description": "Lifecycle hooks",
@@ -655,7 +655,7 @@
           ],
           "format": "uint64",
           "default": null,
-          "minimum": 0
+          "minimum": 1
         },
         "trigger_rule": {
           "description": "Trigger rule determining when this step should execute",
@@ -692,13 +692,13 @@
           "minimum": 0
         },
         "timeout": {
-          "description": "Default timeout in seconds for all steps.",
+          "description": "Default timeout in seconds for all steps. Zero is refused: it would kill every step on sight.",
           "type": [
             "integer",
             "null"
           ],
           "format": "uint64",
-          "minimum": 0
+          "minimum": 1
         }
       },
       "additionalProperties": false
