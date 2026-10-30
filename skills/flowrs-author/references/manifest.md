@@ -274,9 +274,6 @@ Use one comparison per expression. Supported operators are ==, !=, >, <, >=, and
 side of `when` and `require` names a parameter; the right side is a literal. If `when` is true and
 `require` is false, resolution fails with exit 64.
 
-Comparisons of number parameters share a tolerance of `f64::EPSILON * max(abs(left), abs(right), 1)`.
-Within that tolerance, values compare equal rather than greater or less.
-
 The referenced parameters must have a default in each reachable validation window: use the selected
 profile's default when supplied, otherwise the base default. Without a profile selector, the base
 window is checked. Invocation-only, resume-only, or detector-only values cannot satisfy this
