@@ -221,6 +221,7 @@ SIGINT, SIGTERM, SIGHUP, and SIGQUIT cancel a run and normally return 128 + sign
 processes are killed as a group. Cancellation during scheduling skips unstarted steps with reason
 cancelled; earlier cancellation can leave them pending. Teardown steps do not start after
 cancellation. on_failure runs once the hook lifecycle has started; on_error does not run for cancellation.
+A second signal exits at once without waiting for hooks or a final status.json.
 SIGKILL, power loss, and machine reset cannot be handled.
 
 FlowRs attempts to remove scratch on success, failure, and handled cancellation unless --keep-tmp
