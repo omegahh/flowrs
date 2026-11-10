@@ -1,7 +1,7 @@
 # Pipeline author guide
 
-This guide is for the person who writes a pipeline: the manifest, step scripts, hooks, and package
-that another operator will run.
+This guide is for the person who writes a pipeline: the manifest, step scripts, and hooks that
+another runner will use.
 
 ## Start with a scaffold
 
@@ -18,13 +18,17 @@ The tree contains the files you own and the standard library supplied by FlowRs:
 demo/
 ├── manifest.toml       # pipeline definition
 ├── steps/               # step scripts named by the manifest
-├── hooks/               # optional lifecycle scripts
-├── bin/                 # helper executables and detectors
-├── lib/                 # libraries used by steps
+├── hooks/               # optional lifecycle scripts and small helpers
+├── bin/                 # author-developed detectors and helper executables
+├── lib/                 # shared scripts, native libraries, and supporting assets
 ├── sources/             # optional C/C++ sources
 ├── Makefile             # optional build for compiled steps
 └── stdlib/              # FlowRs runtime contract and language helpers
 ```
+
+Pipelines usually contain executable logic and supporting assets. Large reference datasets, such as
+genome indexes and search databases, are typically managed externally and supplied through path
+parameters. Authors can include library assets in `lib/`; `stdlib/` is supplied by FlowRs.
 
 Keep `manifest.toml`, `steps/`, `hooks/`, `bin/`, `lib/`, and any build sources under version
 control. `flowrs create --update` refreshes the supplied standard library files.
@@ -59,8 +63,7 @@ Use the author reference in this order:
    scatter/gather, and teardown.
 3. [Running](running.md) — the operator flags your pipeline must support, including resume and
    caching.
-4. [Distributing](distributing.md) — validation, plaintext or protected packages, grants, signing,
-   and registry entries.
+4. [Distributing](distributing.md) — validate and share a source tree, or use a supplied package.
 
 Before handing a pipeline to an operator, validate it without creating a package:
 
@@ -68,11 +71,8 @@ Before handing a pipeline to an operator, validate it without creating a package
 flowrs compile demo
 ```
 
-Create a package when the pipeline is ready to distribute:
-
-```bash
-flowrs compile demo -o demo.flowpkg
-```
+To share a source pipeline, provide the complete validated directory. For a portable `.flowpkg`,
+give the validated source to the FlowRs release maintainer and request a package for distribution.
 
 The [exit-code reference](exit-codes.md) documents the stable codes and machine-readable
 diagnostics that wrappers and workflow systems should consume.
