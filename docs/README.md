@@ -7,7 +7,7 @@ contracts; the agent-facing operating instructions live in `skills/flowrs-author
 
 | Audience        | Page                                  | Use it for                                                      |
 | --------------- | ------------------------------------- | --------------------------------------------------------------- |
-| Operator        | [Operator guide](getting-started.md)  | Install, licence, run a pipeline, read results, and manage runs |
+| Operator        | [Operator guide](getting-started.md)  | Install, run a pipeline, and read results                       |
 | Pipeline author | [Pipeline author guide](authoring.md) | Create a pipeline and find the complete author reference        |
 
 ## Operator reference
@@ -25,7 +25,7 @@ contracts; the agent-facing operating instructions live in `skills/flowrs-author
 | [Runtime contract](runtime-contract.md)         | Environment variables, paths, working directory, and logs         |
 | [Stdlib](stdlib.md)                             | Bash, Python, R, and C++ helpers and input-health checks          |
 | [Dependencies and parallelism](dependencies.md) | DAGs, trigger rules, thread budgets, scatter/gather, teardown     |
-| [Distributing](distributing.md)                 | Validation, `.flowpkg` packages, protection, grants, and registry |
+| [Distributing](distributing.md)                 | Validate source trees, share pipelines, and use supplied packages |
 
 ## Related material
 
