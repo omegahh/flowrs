@@ -52,9 +52,10 @@ g++ -std=c++17 -Istdlib/cpp -Istdlib/cpp/vendor sources/analyze.cpp -o steps/ana
 ## Config and logging
 
 Config helpers read uppercase environment names. `get_config` accepts a fallback; typed helpers
-also exist. Parsing differs by language, so validate unusual input explicitly rather than
-assuming a malformed value falls back. Python integer and boolean getters raise `ValueError`
-for malformed non-empty values.
+also exist. Boolean parsing is strict and consistent across languages: recognized true and false
+spellings are accepted case-insensitively after trimming whitespace, while any other non-empty
+value fails. Empty values use the fallback. The language-specific failure is `die` in Bash,
+`ValueError` in Python, an R error, or `std::invalid_argument` in C++.
 
 In Bash, `get_config_bool` returns a shell status, not printed text:
 
@@ -131,8 +132,8 @@ if (!err.empty()) log.die(err);
 for plain or gzipped input. Built-in health codes need no `[[errors]]` declaration; see
 [Exit codes](exit-codes.md#built-in-input-health-codes).
 
-Default checks inspect a 64 KiB head and can miss later corruption. To check record structure
-more deeply, supply a record count:
+Default checks inspect an 8 KiB head and can miss later corruption. Direct `read_head` calls use
+64 KiB by default. To check record structure more deeply, supply a record count:
 
 ```bash
 err=$(fastq_health "$INPUT_DIR/reads.fq.gz" 10000) || die "$err"
@@ -141,7 +142,16 @@ err=$(fastq_health "$INPUT_DIR/reads.fq.gz" 10000) || die "$err"
 An input with fewer complete records is healthy; a partial record is a shape error.
 A truncated gzip stream encountered during a depth read reports `INCOMPLETE_GZIP`.
 Defects beyond the inspected records can still escape detection; use `gzip -t` for gzip
-whole-stream integrity. CRLF alone is not a health failure.
+whole-stream integrity. Gzip depth reads support concatenated members, including records split
+across member boundaries. CRLF alone is not a health failure.
+
+Python, R, and C++ also provide `read_lines(path, lines)`, which returns the requested lines and
+a stream-integrity flag. It retains those lines in memory, so very long lines or large counts can
+consume substantial memory.
+
+FlowRs itself streams unit stdout and stderr to disk. Its stderr parser retains only a 64 KiB
+prefix of one line for tags and failure excerpts; oversized lines are preserved in the log but are
+not parsed as detector claims.
 
 Sequence helpers include FASTQ pairing prefixes. For example, `sample_R1.fastq.gz` and
 `sample_R2.fastq.gz` both map to `sample` in the four languages.
