@@ -119,7 +119,7 @@ a profile or detector, a config file, or repeated `-p KEY=VALUE` overrides. See 
 [manifest reference](https://github.com/omegahh/flowrs/blob/main/docs/manifest-reference.md) for all fields, validation rules, collections,
 hooks, and constraints.
 
-## Validate and package
+## Validate and share
 
 Validate a pipeline before running it:
 
@@ -133,16 +133,13 @@ Use `--json` when a tool needs a stable diagnostics envelope:
 flowrs compile ./hello --json
 ```
 
-Create a distributable package with `-o`:
+Share a validated source directory or bundle it as a plaintext `.flowpkg` with
+`flowrs compile ./hello -o hello.flowpkg`. Run either form with the same command. See the
+[distribution guide](https://github.com/omegahh/flowrs/blob/main/docs/distributing.md) for sharing
+a source tree or package.
 
-```bash
-flowrs compile ./hello -o hello.flowpkg
-flowrs compile ./hello -o hello-protected.flowpkg --encrypt
-```
-
-A plaintext pipeline directory and a plain package run without a licence. A protected package
-requires a valid licence and a matching grant for that package. The [distribution guide](https://github.com/omegahh/flowrs/blob/main/docs/distributing.md)
-covers signing, protection, grants, and registry entries.
+FlowRs calls a pipeline directory `plaintext` and a plaintext `.flowpkg` `packaged`.
+Publisher-authorized releases are `protected`. These names appear in registry listings and run output.
 
 ## Run and inspect results
 
@@ -194,21 +191,6 @@ flowrs registry list --json
 flowrs registry remove hello
 ```
 
-## Licence
-
-Protected packages require a valid licence and a matching grant. The issuer can restrict the
-licence to named machines. For a machine-restricted licence, send the issuer this identity:
-
-```bash
-flowrs license fingerprint
-flowrs license add ./flowrs.license
-flowrs license status
-```
-
-FlowRs searches `./flowrs.license`, `./license.json`, `/etc/flowrs/license.json`, and
-`~/.flowrs/license.json`, in that order. A licence is checked when a protected package is opened;
-that package additionally needs a matching pipeline grant.
-
 ## Exit codes
 
 The process code is intended for scripts:
@@ -219,23 +201,24 @@ The process code is intended for scripts:
 | `64` | Invalid command or supplied value |
 | `65` | Malformed or corrupt input/package |
 | `70` | Runtime or internal failure |
-| `77` | Protected package licence is missing, invalid, expired, or for another machine |
+| `77` | Access identity is unusable |
 | `78` | Manifest configuration is invalid |
-| `79` | Licence is valid but lacks a grant for a protected package |
+| `79` | The pipeline is not authorized to run here |
 
 For a run, `status.json` identifies the step and its exit code. See the complete
 [exit-code reference](https://github.com/omegahh/flowrs/blob/main/docs/exit-codes.md) for diagnostics and built-in step errors.
+For access or package-opening failures, send the publisher the exact error and package version.
 
 ## Documentation and authoring support
 
-- [Getting started](https://github.com/omegahh/flowrs/blob/main/docs/getting-started.md) - install, licence, run, and read results
-- [Pipeline author guide](https://github.com/omegahh/flowrs/blob/main/docs/authoring.md) - build and package a pipeline
+- [Getting started](https://github.com/omegahh/flowrs/blob/main/docs/getting-started.md) - install, run a pipeline, and read results
+- [Pipeline author guide](https://github.com/omegahh/flowrs/blob/main/docs/authoring.md) - create and validate a pipeline
 - [Manifest reference](https://github.com/omegahh/flowrs/blob/main/docs/manifest-reference.md) - manifest fields and rules
 - [Runtime contract](https://github.com/omegahh/flowrs/blob/main/docs/runtime-contract.md) - environment variables, paths, and logs
 - [Standard library](https://github.com/omegahh/flowrs/blob/main/docs/stdlib.md) - Bash, Python, R, and C++ helpers
 - [Dependencies and parallelism](https://github.com/omegahh/flowrs/blob/main/docs/dependencies.md) - DAGs, trigger rules, and scatter/gather
 - [Running](https://github.com/omegahh/flowrs/blob/main/docs/running.md) - slices, resume, caching, and signals
-- [Distributing](https://github.com/omegahh/flowrs/blob/main/docs/distributing.md) - `.flowpkg`, signing, protection, and grants
+- [Distributing](https://github.com/omegahh/flowrs/blob/main/docs/distributing.md) - share source trees and run supplied packages
 - [Exit codes](https://github.com/omegahh/flowrs/blob/main/docs/exit-codes.md) - stable codes and machine-readable diagnostics
 
 The public repository keeps the generated [manifest schema](https://github.com/omegahh/flowrs/blob/main/schema/manifest-v1.json),
