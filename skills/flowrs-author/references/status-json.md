@@ -35,7 +35,7 @@ leave no record. Check that the file belongs to this invocation before using a p
 | lifecycle_hooks | object, absent | Hook execution records |
 | steps | object | Step and scattered-instance records keyed by step or step/item key |
 | version_fingerprint | object, absent | engine_version and pipeline_version used for resume |
-| input_fingerprint | string, absent | Input-tree stat fingerprint when cache_dir is declared |
+| input_fingerprint | string, absent | Input-tree stat fingerprint used to prevent resume across different input trees |
 | collections | object, absent | Parsed collection digests keyed by collection name |
 | failure | object, absent | Run-level failure with code and message, often during setup |
 | cancelled_by | string, absent | Signal name such as SIGINT |
@@ -112,7 +112,8 @@ script share a record.
 ## Hook Records
 
 lifecycle_hooks contains on_start, on_success, on_failure, and on_error maps/lists when hooks ran.
-Each hook execution records:
+Hook status reflects the process exit code: exit 0 is `completed`, and a nonzero exit is `failed`.
+FlowRs captures hook output and records the status. Each hook execution records:
 
 | Field | Meaning |
 | --- | --- |
@@ -146,8 +147,8 @@ from timestamps; use the status and cache result.
 ## Consumer Rules
 
 - Match status and skip_reason values, not human error text.
-- Read the step's exit_code together with its key to distinguish a step exit 77 from a licence
-  failure.
+- Read the step's exit_code together with its key to distinguish a step exit 77 from an
+  authorization identity failure.
 - Treat absent optional fields as unavailable. Omission does not prove a detector or hook did not run.
 - Use duration_ms for elapsed time; timestamps have second precision.
 - Preserve unknown additive fields and reject only an unknown schema_version or a changed meaning.
