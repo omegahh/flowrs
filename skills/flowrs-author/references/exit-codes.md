@@ -15,9 +15,9 @@
 | 64 | Invalid invocation or value from the invocation |
 | 65 | Malformed or corrupt input data or package |
 | 70 | Runtime, process, or internal failure |
-| 77 | Protected package licence is invalid or unusable |
+| 77 | Local access identity is unusable |
 | 78 | Manifest is invalid |
-| 79 | Valid licence lacks a grant for the protected package |
+| 79 | The pipeline is not authorized to run here |
 | 100–119 | Reserved input-health band; 100–109 are assigned |
 | 120 | Declared output missing after exit 0 |
 | 121 | Conflicting shared-cache replacement detected; resolve the conflict and rerun |
@@ -27,25 +27,27 @@
 | 128+N | Signal termination or run cancellation |
 
 The author band is 1 through 63. Keep declared codes there. A step code is passed through
-verbatim, so an undeclared step exit 77 is indistinguishable from a licence failure when reading only
+verbatim, so an undeclared step exit 77 is indistinguishable from an authorization identity failure when reading only
 the process code. Read status.json to identify the step.
 
-CLI argument-parser errors can exit 2. A skipped or filtered step receives no fresh output check;
+CLI argument-parser errors exit 64. A skipped or filtered step receives no fresh output check;
 run success does not prove its outputs exist.
 
 The blame line is:
 
 - 64: fix the command, flag, config, or supplied value.
 - 78: fix the manifest.
-- 77: install or repair the licence for a protected package.
-- 79: ask the issuer for a package grant.
+- 77 or 79: send the publisher the exact error, package version, and exit code so they can check
+  the runner's access setup.
 
 ## JSON Envelope
 
 compile --json emits JSON on stdout for success and failure. inspect --json emits the manifest
-projection on success and the envelope only on failure. Human stderr and the process exit code are
+projection on success and the envelope only on failure. All sources share top-level manifest fields.
+A protected failure adds inspection to the envelope with readable metadata and authorization;
+unopened manifest fields are omitted. Human stderr and the process exit code are
 unchanged. run has no --json.
-Argument-parser errors can exit 2 with usage on stderr and no JSON document. Check stdout
+Argument-parser errors exit 64 with usage on stderr and no JSON document. Check stdout
 before parsing it.
 
 ~~~json
@@ -89,7 +91,7 @@ usually yields one diagnostic because parsing stops before validation.
 | Code | Raised when |
 | --- | --- |
 | `invalid_step_name` | A step name is empty, or contains a path separator or `..`. |
-| `invalid_step_exec` | A step's `exec` is empty, or contains a path separator or `..`. |
+| `invalid_step_exec` | A step's `exec` is empty, absolute, or contains a `.` or `..` path component. |
 | `unknown_dependency` | A `depends_on` entry names a step that is not declared. |
 | `teardown_dependency` | A non-teardown step depends on a teardown step. |
 | `cycle_detected` | A cycle exists in the `depends_on` graph. |
@@ -111,7 +113,7 @@ usually yields one diagnostic because parsing stops before validation.
 | `gather_of_unscattered_step` | A `gather` entry names a step that does not scatter. |
 | `scatter_with_gather` | A step declares both `scatter` and `gather`. |
 | `scatter_incompatible_step` | A step is both `teardown` and scattered. |
-| `item_output_collision` | Two steps over one collection declare the same `${ITEM_DIR}` output. |
+| `item_output_collision` | Two steps over one collection declare overlapping `${ITEM_DIR}` outputs. |
 | `scattered_upstream_needs_gather` | A scalar step depends on a scattered one without gathering it. |
 | `cross_collection_dependency` | Two steps over different collections depend on each other, which is a Cartesian product. |
 
@@ -192,7 +194,7 @@ usually yields one diagnostic because parsing stops before validation.
 | `cache_incompatible_step` | A cached step is teardown or uses a trigger rule other than all_success. |
 | `cache_key_unknown_param` | A `cache_key` entry names a param that is not declared. |
 | `cache_key_readonly_param` | A cache key names a readonly parameter. |
-| `cache_output_collision` | Two cached steps declare the same `${CACHE_DIR}` filename as an output. |
+| `cache_output_collision` | Two cached steps declare overlapping `${CACHE_DIR}` outputs. |
 | `uncached_cache_writer` | A step declares an `outputs` path under `${CACHE_DIR}` without setting `cache = true`. |
 | `removed_cache_dir_variable` | An output uses the unsupported CACHE_DIR_<STEP> variable form. |
 
