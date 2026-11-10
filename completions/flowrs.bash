@@ -25,11 +25,11 @@ _flowrs() {
             flowrs,help)
                 cmd="flowrs__subcmd__help"
                 ;;
+            flowrs,identity)
+                cmd="flowrs__subcmd__identity"
+                ;;
             flowrs,inspect)
                 cmd="flowrs__subcmd__inspect"
-                ;;
-            flowrs,license)
-                cmd="flowrs__subcmd__license"
                 ;;
             flowrs,registry)
                 cmd="flowrs__subcmd__registry"
@@ -46,11 +46,11 @@ _flowrs() {
             flowrs__subcmd__help,help)
                 cmd="flowrs__subcmd__help__subcmd__help"
                 ;;
+            flowrs__subcmd__help,identity)
+                cmd="flowrs__subcmd__help__subcmd__identity"
+                ;;
             flowrs__subcmd__help,inspect)
                 cmd="flowrs__subcmd__help__subcmd__inspect"
-                ;;
-            flowrs__subcmd__help,license)
-                cmd="flowrs__subcmd__help__subcmd__license"
                 ;;
             flowrs__subcmd__help,registry)
                 cmd="flowrs__subcmd__help__subcmd__registry"
@@ -58,14 +58,11 @@ _flowrs() {
             flowrs__subcmd__help,run)
                 cmd="flowrs__subcmd__help__subcmd__run"
                 ;;
-            flowrs__subcmd__help__subcmd__license,add)
-                cmd="flowrs__subcmd__help__subcmd__license__subcmd__add"
+            flowrs__subcmd__help__subcmd__identity,init)
+                cmd="flowrs__subcmd__help__subcmd__identity__subcmd__init"
                 ;;
-            flowrs__subcmd__help__subcmd__license,fingerprint)
-                cmd="flowrs__subcmd__help__subcmd__license__subcmd__fingerprint"
-                ;;
-            flowrs__subcmd__help__subcmd__license,status)
-                cmd="flowrs__subcmd__help__subcmd__license__subcmd__status"
+            flowrs__subcmd__help__subcmd__identity,show)
+                cmd="flowrs__subcmd__help__subcmd__identity__subcmd__show"
                 ;;
             flowrs__subcmd__help__subcmd__registry,add)
                 cmd="flowrs__subcmd__help__subcmd__registry__subcmd__add"
@@ -76,29 +73,23 @@ _flowrs() {
             flowrs__subcmd__help__subcmd__registry,remove)
                 cmd="flowrs__subcmd__help__subcmd__registry__subcmd__remove"
                 ;;
-            flowrs__subcmd__license,add)
-                cmd="flowrs__subcmd__license__subcmd__add"
+            flowrs__subcmd__identity,help)
+                cmd="flowrs__subcmd__identity__subcmd__help"
                 ;;
-            flowrs__subcmd__license,fingerprint)
-                cmd="flowrs__subcmd__license__subcmd__fingerprint"
+            flowrs__subcmd__identity,init)
+                cmd="flowrs__subcmd__identity__subcmd__init"
                 ;;
-            flowrs__subcmd__license,help)
-                cmd="flowrs__subcmd__license__subcmd__help"
+            flowrs__subcmd__identity,show)
+                cmd="flowrs__subcmd__identity__subcmd__show"
                 ;;
-            flowrs__subcmd__license,status)
-                cmd="flowrs__subcmd__license__subcmd__status"
+            flowrs__subcmd__identity__subcmd__help,help)
+                cmd="flowrs__subcmd__identity__subcmd__help__subcmd__help"
                 ;;
-            flowrs__subcmd__license__subcmd__help,add)
-                cmd="flowrs__subcmd__license__subcmd__help__subcmd__add"
+            flowrs__subcmd__identity__subcmd__help,init)
+                cmd="flowrs__subcmd__identity__subcmd__help__subcmd__init"
                 ;;
-            flowrs__subcmd__license__subcmd__help,fingerprint)
-                cmd="flowrs__subcmd__license__subcmd__help__subcmd__fingerprint"
-                ;;
-            flowrs__subcmd__license__subcmd__help,help)
-                cmd="flowrs__subcmd__license__subcmd__help__subcmd__help"
-                ;;
-            flowrs__subcmd__license__subcmd__help,status)
-                cmd="flowrs__subcmd__license__subcmd__help__subcmd__status"
+            flowrs__subcmd__identity__subcmd__help,show)
+                cmd="flowrs__subcmd__identity__subcmd__help__subcmd__show"
                 ;;
             flowrs__subcmd__registry,add)
                 cmd="flowrs__subcmd__registry__subcmd__add"
@@ -131,7 +122,7 @@ _flowrs() {
 
     case "${cmd}" in
         flowrs)
-            opts="-q -v -h -V --quiet --verbose --help --version run create compile registry inspect license help"
+            opts="-q -v -h -V --quiet --verbose --help --version run create compile registry inspect identity help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 1 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -145,7 +136,7 @@ _flowrs() {
             return 0
             ;;
         flowrs__subcmd__compile)
-            opts="-o -q -v -h --output --encrypt --sign-with --author --json --quiet --verbose --help"
+            opts="-o -q -v -h --output --author --json --quiet --verbose --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -156,10 +147,6 @@ _flowrs() {
                     return 0
                     ;;
                 -o)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                --sign-with)
                     COMPREPLY=($(compgen -f "${cur}"))
                     return 0
                     ;;
@@ -197,7 +184,7 @@ _flowrs() {
             return 0
             ;;
         flowrs__subcmd__help)
-            opts="run create compile registry inspect license help"
+            opts="run create compile registry inspect identity help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
@@ -252,65 +239,51 @@ _flowrs() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        flowrs__subcmd__help__subcmd__identity)
+            opts="init show"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        flowrs__subcmd__help__subcmd__identity__subcmd__init)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        flowrs__subcmd__help__subcmd__identity__subcmd__show)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         flowrs__subcmd__help__subcmd__inspect)
             opts=""
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        flowrs__subcmd__help__subcmd__license)
-            opts="status add fingerprint"
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        flowrs__subcmd__help__subcmd__license__subcmd__add)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        flowrs__subcmd__help__subcmd__license__subcmd__fingerprint)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        flowrs__subcmd__help__subcmd__license__subcmd__status)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
                 COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
                 return 0
             fi
@@ -392,6 +365,116 @@ _flowrs() {
             COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
             return 0
             ;;
+        flowrs__subcmd__identity)
+            opts="-q -v -h --quiet --verbose --help init show help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        flowrs__subcmd__identity__subcmd__help)
+            opts="init show help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        flowrs__subcmd__identity__subcmd__help__subcmd__help)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        flowrs__subcmd__identity__subcmd__help__subcmd__init)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        flowrs__subcmd__identity__subcmd__help__subcmd__show)
+            opts=""
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        flowrs__subcmd__identity__subcmd__init)
+            opts="-o -q -v -h --output --quiet --verbose --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --output)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                -o)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
+        flowrs__subcmd__identity__subcmd__show)
+            opts="-q -v -h --identity --json --quiet --verbose --help"
+            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
+                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+                return 0
+            fi
+            case "${prev}" in
+                --identity)
+                    COMPREPLY=($(compgen -f "${cur}"))
+                    return 0
+                    ;;
+                *)
+                    COMPREPLY=()
+                    ;;
+            esac
+            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
+            return 0
+            ;;
         flowrs__subcmd__inspect)
             opts="-q -v -h --check-environment --json --quiet --verbose --help"
             if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
@@ -399,140 +482,6 @@ _flowrs() {
                 return 0
             fi
             case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        flowrs__subcmd__license)
-            opts="-q -v -h --quiet --verbose --help status add fingerprint help"
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 2 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        flowrs__subcmd__license__subcmd__add)
-            opts="-q -v -h --quiet --verbose --help"
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        flowrs__subcmd__license__subcmd__fingerprint)
-            opts="-q -v -h --quiet --verbose --help"
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        flowrs__subcmd__license__subcmd__help)
-            opts="status add fingerprint help"
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        flowrs__subcmd__license__subcmd__help__subcmd__add)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        flowrs__subcmd__license__subcmd__help__subcmd__fingerprint)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        flowrs__subcmd__license__subcmd__help__subcmd__help)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        flowrs__subcmd__license__subcmd__help__subcmd__status)
-            opts=""
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 4 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                *)
-                    COMPREPLY=()
-                    ;;
-            esac
-            COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-            return 0
-            ;;
-        flowrs__subcmd__license__subcmd__status)
-            opts="-f -q -v -h --file --quiet --verbose --help"
-            if [[ ${cur} == -* || ${COMP_CWORD} -eq 3 ]] ; then
-                COMPREPLY=( $(compgen -W "${opts}" -- "${cur}") )
-                return 0
-            fi
-            case "${prev}" in
-                --file)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
-                -f)
-                    COMPREPLY=($(compgen -f "${cur}"))
-                    return 0
-                    ;;
                 *)
                     COMPREPLY=()
                     ;;
