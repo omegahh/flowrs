@@ -333,7 +333,7 @@
       ]
     },
     "PipelineHooks": {
-      "description": "Lifecycle hooks for pipeline execution.\n\nHooks notify asynchronously and their failures warn without changing the run result.\nThey are outside step selection and are recorded separately from steps. Started hooks\nare joined before the final summary, subject to a five-minute timeout per script.\nUse a step or teardown step for work whose failure must fail the run.",
+      "description": "Lifecycle hooks for pipeline execution.\n\nHooks run asynchronously for author-defined side effects and their failures warn without\nchanging the run result. The hook owns its operation and should exit nonzero when it fails.\nFlowRs launches the hook, captures its output, records the status, and reports a warning. Hooks\nare outside step selection and are recorded separately from steps. Started hooks are joined\nbefore the final summary, subject to a five-minute timeout per script. Use a step or teardown\nstep when the work must produce pipeline inputs or its failure must fail the run.",
       "type": "object",
       "properties": {
         "on_error": {
@@ -385,7 +385,7 @@
           ]
         },
         "cache_dir": {
-          "description": "Directory name, relative to `WORK_DIR`, holding results shared across runs.\n\nRequired when a step sets `cache = true`. Scalar cached outputs use `${CACHE_DIR}`;\ncached item outputs use `${ITEM_DIR}` under this root.",
+          "description": "Directory name, relative to `WORK_DIR`, holding results shared across runs.\n\nRequired when a step sets `cache = true`. Cached scalar outputs use a path below\n`${CACHE_DIR}`; scattered outputs use a path below each run's `${ITEM_DIR}` and are copied\ninto this cache for reuse.",
           "type": [
             "string",
             "null"
@@ -549,12 +549,12 @@
       "type": "object",
       "properties": {
         "cache": {
-          "description": "Reuse this step's results across runs when its inputs are unchanged.\n\nScalar results use the shared `${CACHE_DIR}`; scattered results use `${ITEM_DIR}` under\nthat root. Cache markers track the identity described by `cache_key`. A matching completed\nentry reuses the existing results without executing the step.",
+          "description": "Reuse this step's results across runs when its inputs are unchanged.\n\nScalar results use the shared `${CACHE_DIR}`; scattered results use each item's `${ITEM_DIR}`\nin the run output and are copied into the cache. The declared output scope is part of the\nidentity, alongside the fields described by `cache_key`. Pipeline and step names and\nversions are not hashed; differently named steps share an entry when their declared\nexecution contracts match. A matching completed entry reuses the existing results without\nexecuting the step.",
           "type": "boolean",
           "default": false
         },
         "cache_key": {
-          "description": "Parameters whose values are part of this step's cache identity.\n\nList the non-readonly parameters that affect this step's results. Identity also includes\nexecutable content, input metadata, and relevant upstream identities. Imported libraries,\ntool versions, and unlisted parameters are outside this tracking.",
+          "description": "Parameters whose values are part of this step's cache identity.\n\nList the non-readonly parameters that affect this step's results. Identity also includes\nexecutable content, input metadata, declared output scope and paths, and relevant upstream\nidentities. Imported libraries, tool versions, and unlisted parameters are outside this\ntracking.",
           "type": "array",
           "default": [],
           "items": {
@@ -570,7 +570,7 @@
           }
         },
         "exec": {
-          "description": "Executable filename relative to pipeline's steps/ directory",
+          "description": "Executable path relative to the pipeline's steps/ directory",
           "type": "string"
         },
         "gather": {
@@ -586,7 +586,7 @@
           "type": "string"
         },
         "outputs": {
-          "description": "Expected output files, checked after a successful exit.\nScalar paths may be absolute or use ${OUT_DIR}, ${WORK_DIR}, or ${TMP_DIR}; writing under\n${CACHE_DIR} requires caching. Scattered outputs use ${ITEM_DIR}, including when cached.\nA missing output converts exit 0 into a failure.",
+          "description": "Expected output paths, checked after a successful exit.\nScalar paths may be absolute or use ${OUT_DIR}, ${WORK_DIR}, or ${TMP_DIR}; cached scalar\npaths must be below ${CACHE_DIR}. Scattered outputs must be below ${ITEM_DIR}, including\nwhen cached; the item root itself is not an output. A missing output converts exit 0 into a\nfailure.",
           "type": [
             "array",
             "null"
