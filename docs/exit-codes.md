@@ -7,23 +7,24 @@
 | `64` | Invalid invocation or supplied parameter |
 | `65` | Malformed or corrupt input/package |
 | `70` | Runtime or internal failure |
-| `77` | Protected-package licence is unusable |
+| `77` | Customer identity or client MAC policy is rejected |
 | `78` | Invalid manifest |
-| `79` | Valid licence lacks a usable grant for this protected build |
+| `79` | The pipeline is not authorized to run here |
 | `120` | `MISSING_OUTPUT`: a step exited 0 without a declared output |
 | `121` | `CACHE_INPUT_CHANGED`: conflicting shared-cache replacement detected |
 | `124` | `TIMEOUT` |
 | `126` / `127` | Not executable / command not found |
 | `128+N` | Signal termination or run cancellation |
 
-CLI argument-parser errors can exit 2. Skipped or filtered steps do not receive fresh output
+CLI argument-parser errors exit 64. Skipped or filtered steps do not receive fresh output
 checks, so run success does not prove their outputs exist.
 
-For protected packages, fix 77 by installing a valid licence. Fix 79 by requesting a matching
-grant from the issuer. Pipeline directories and plain packages do not consult licences.
+For a packaged pipeline, send access failures to its publisher with the package version and exact
+error. For code 65 package-integrity failures, obtain the package again from its publisher. If the
+same error remains, ask the publisher to verify the package and access setup.
 
 Failing step codes pass through verbatim, including codes outside the author band. An undeclared
-step exit 77 can therefore resemble a licence failure. Read `status.json` to identify the failing
+step exit 77 can therefore resemble a customer authorization failure. Read `status.json` to identify the failing
 step and its code.
 
 ## Built-in input-health codes
@@ -67,8 +68,12 @@ Use `flowrs compile DIR --json` for a diagnostic envelope on stdout:
 
 Compile success is `{"ok":true,"exit_code":0,"diagnostics":[]}`.
 `inspect --json` instead returns the manifest projection on success and the envelope on failure.
+All source types share the top-level manifest fields, with `type`, `source`, and package or
+`authorization` details where applicable. When a protected manifest cannot be opened, its failure
+envelope also carries `inspection` with the readable source metadata and authorization result.
+It omits unopened manifest fields and still emits exactly one JSON document.
 Human progress goes to stderr. Run has no `--json`; consume `status.json`.
-Argument-parser errors can exit 2 with usage on stderr and no JSON document.
+Argument-parser errors exit 64 with usage on stderr and no JSON document.
 
 | Field | Contract |
 | --- | --- |
@@ -98,7 +103,7 @@ dependent findings. Fix the reported problems and validate again.
 | Code | Raised when |
 | --- | --- |
 | `invalid_step_name` | A step name is empty, or contains a path separator or `..`. |
-| `invalid_step_exec` | A step's `exec` is empty, or contains a path separator or `..`. |
+| `invalid_step_exec` | A step's `exec` is empty, absolute, contains a backslash, or has an empty, dot, or traversal component. |
 | `unknown_dependency` | A `depends_on` entry names a step that is not declared. |
 | `teardown_dependency` | A non-teardown step depends on a teardown step. |
 | `cycle_detected` | A cycle exists in the `depends_on` graph. |
@@ -120,7 +125,7 @@ dependent findings. Fix the reported problems and validate again.
 | `gather_of_unscattered_step` | A `gather` entry names a step that does not scatter. |
 | `scatter_with_gather` | A step declares both `scatter` and `gather`. |
 | `scatter_incompatible_step` | A step is both `teardown` and scattered. |
-| `item_output_collision` | Two steps over one collection declare the same `${ITEM_DIR}` output. |
+| `item_output_collision` | Two steps over one collection declare overlapping `${ITEM_DIR}` outputs. |
 | `scattered_upstream_needs_gather` | A scalar step depends on a scattered one without gathering it. |
 | `cross_collection_dependency` | Two steps over different collections depend on each other, which is a Cartesian product. |
 
@@ -201,7 +206,7 @@ dependent findings. Fix the reported problems and validate again.
 | `cache_incompatible_step` | A cached step is teardown or uses a trigger rule other than all_success. |
 | `cache_key_unknown_param` | A `cache_key` entry names a param that is not declared. |
 | `cache_key_readonly_param` | A cache key names a readonly parameter. |
-| `cache_output_collision` | Two cached steps declare the same `${CACHE_DIR}` filename as an output. |
+| `cache_output_collision` | Two cached steps declare overlapping `${CACHE_DIR}` outputs. |
 | `uncached_cache_writer` | A step declares an `outputs` path under `${CACHE_DIR}` without setting `cache = true`. |
 | `removed_cache_dir_variable` | An output uses the unsupported CACHE_DIR_<STEP> variable form. |
 
