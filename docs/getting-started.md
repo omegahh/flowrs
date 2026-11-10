@@ -19,47 +19,6 @@ flowrs --version
 Shell completions are in the archive under `completions/`. To build from source,
 `cargo build --release` writes `target/release/flowrs`.
 
-## Install a licence for protected packages
-
-**Plaintext runs need no licence.** A pipeline directory and a plain `.flowpkg` run without one. A
-protected `.flowpkg` needs a valid licence and a grant for that package.
-
-FlowRs searches these paths in order and uses the first file that validates:
-
-1. `./flowrs.license`
-2. `./license.json`
-3. `/etc/flowrs/license.json`
-4. `~/.flowrs/license.json`
-
-Ask the licence issuer which machine identity to send:
-
-```bash
-flowrs license fingerprint
-```
-
-A machine identity can change after a hardware replacement or operating-system reinstall. If the
-licence restricts machines, ask the issuer to reissue it with the new identity.
-
-Install the file they return:
-
-```bash
-flowrs license add ./your-licence-file
-```
-
-Check the installed licence before a run:
-
-```bash
-flowrs license status
-```
-
-Adding a licence may require network access. Once installed, protected-package runs can work
-offline until the licence expires. Keep `~/.flowrs` available on containers and cluster nodes;
-deleting it means installing the licence again.
-
-If validation fails, use the reported path and expiry information to correct the licence, or ask
-the issuer for a replacement. A licence failure for a protected package is exit code `77`; a
-missing grant is exit code `79`.
-
 ## Run a pipeline
 
 The basic invocation is:
@@ -68,8 +27,10 @@ The basic invocation is:
 flowrs run <PIPELINE> -i <INPUT_DIR> -w <WORK_DIR> [-t <TASK_ID>]
 ```
 
-`<PIPELINE>` may be a registered name, a pipeline directory, or a `.flowpkg`. The input directory
-must exist and allow read and search access; the work directory is created after validation if absent.
+`<PIPELINE>` may be a registered name, a pipeline directory, or a `.flowpkg` supplied by its
+publisher. Some packages need publisher-provided access on this machine; contact the publisher if
+FlowRs reports an access or package-opening failure. The input directory must exist and allow read
+and search access; the work directory is created after validation if absent.
 Use `-t` when several runs share one work directory; each task gets its own output directory.
 
 For parameters and run controls, see [Running](running.md). For a pipeline directory, a useful
