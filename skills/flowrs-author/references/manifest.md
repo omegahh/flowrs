@@ -26,7 +26,8 @@ flowrs compile --json. Use only the fields listed here. Unknown fields are rejec
 | [groups.NAME] | description | order |
 
 Pipeline and step names are identifiers used in paths and graph keys. Reject empty names, path
-separators, and double-dot. Keep exec, detector, and hook values as one filename without a separator.
+separators, and double-dot. Detector and hook values are single filenames. Step exec values are
+paths relative to steps/. Files shared across steps can be placed in lib/, bin/, hooks/, or stdlib/.
 
 ## Pipeline
 
@@ -80,8 +81,9 @@ teardown = false
 - trigger_rule defaults to all_success. Accepted values are all_success, all_failed, all_done,
   one_success, one_failed, none_failed, none_failed_min_one_success, none_skipped, and always.
 - outputs is optional. Scalar outputs may use ${OUT_DIR}, ${WORK_DIR}, ${TMP_DIR}, or absolute
-  paths; writing below ${CACHE_DIR} requires cache = true. Scattered outputs use ${ITEM_DIR},
-  including when cached. ${INPUT_DIR} is forbidden, and a scalar step has no ${ITEM_DIR}.
+  paths; cached scalar outputs must be below ${CACHE_DIR}. Scattered outputs must be below
+  ${ITEM_DIR}, including when cached; the root itself is not an output. ${INPUT_DIR} is forbidden,
+  and a scalar step has no ${ITEM_DIR}.
   Place the root variable first; do not include another variable or . or .. path components.
   A declared output missing after exit 0 changes the step result to exit 120.
 - teardown = true runs the step after the main graph, whether the graph succeeds or fails. It is
@@ -89,7 +91,7 @@ teardown = false
 - gather is a list of scattered step names. It waits for the named scattered batches and provides
   FLOWRS_GATHER_MANIFEST. Do not repeat a gathered step in depends_on or combine gather with scatter.
 - scatter is a collection name or { collection = "NAME" }. It runs once per collection item.
-- cache = true requires pipeline.cache_dir. Declare cached output files in
+- cache = true requires pipeline.cache_dir. Declare cached output paths in
   outputs; declare the parameter names that affect the output in cache_key. Do not name a
   readonly parameter in cache_key.
 
@@ -236,9 +238,13 @@ on_error.NO_INPUT_DATA = ["repair-input.sh"]
 ~~~
 
 Use bare filenames resolved under hooks/. Accepted keys are on_start, on_success, on_failure,
-and on_error.CODE. Hooks are side-channel notifications: they do not participate in the DAG,
-slices, or thread budget, and a hook failure does not fail the run. Cancellation does not trigger a
-new on_error hook. Use a teardown step for delivery work whose failure must fail the run.
+and on_error.CODE. Hooks are lifecycle scripts for side effects such as notifications, audit
+records, metrics, or external cleanup. They do not participate in the DAG, slices, or thread budget,
+and a hook failure does not fail the run. The hook owns its operation and should exit nonzero when
+it fails. FlowRs launches the hook, captures its output, records exit 0 as completed and a nonzero
+exit as failed, and reports a warning. A wrapper that catches an internal error and returns 0 is
+recorded as completed. Use a regular or teardown step when the work must produce pipeline inputs or
+its failure must fail the run. Cancellation does not trigger a new on_error hook.
 
 ## Collections
 
