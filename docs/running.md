@@ -20,9 +20,44 @@ flowrs run <PIPELINE> -i <INPUT_DIR> -w <WORK_DIR> [-t <TASK_ID>] [options]
 | `-k, --skip-steps` | Skip named steps |
 | `--resume` | Continue the recorded run |
 | `--force` | With resume, permit input or cache-key parameter changes |
-| `--tmp-dir` | Choose a scratch base, such as `/dev/shm` |
+| `--tmp-dir` | Choose a scratch base for step temporary files |
 | `--keep-tmp` | Retain scratch after success, failure, or handled cancellation |
 | `-q` / `-v` / `-vv` | Quiet / include debug / include trace messages |
+
+## Inspect a pipeline
+
+```bash
+flowrs inspect guardian
+flowrs inspect guardian --json
+flowrs inspect guardian -v
+```
+
+Inspection starts with the pipeline name, version, state (`plaintext`, `packaged`, or `protected`),
+description, author, and source path. A packaged pipeline also reports its build timestamp and
+required FlowRs version. Dates are shown only when known; a package build is not a last-edit date.
+
+Protected packages have an `Authorization` section before their manifest details. It reports the
+server and customer names, release ID, machine permission, grant scope, and access expiry with time
+remaining. Access ends at the earlier customer or grant expiry. Dates include the local UTC offset.
+A limited grant reports occupied run slots; a full quota still permits inspection. `-v` adds IDs,
+client MAC/IP, key scheme, and the content fingerprint.
+
+An access refusal preserves the basic metadata and ends after `Authorization` with the error on
+stderr. `Denied` means the server checked and refused access; `Could not check` means configuration,
+connectivity, or package verification prevented the check. A corrected configuration or publisher
+assistance may be needed before manifest details can be shown.
+
+Successful inspection continues with `Pipeline` settings, then steps, parameters, constraints,
+errors, and hooks. The displayed source is the supplied directory or package, never a temporary
+extraction directory. Inspection does not execute pipeline steps, detectors, or hooks.
+
+`--json` uses the same top-level manifest fields for every source, including `name`, `version`,
+`steps`, and `parameters`, plus `type` and `source`. Package metadata adds `built` when known and
+`requires_flowrs`. Protected sources add `authorization`; its `status` is `authorized`, `denied`,
+or `unavailable`. Expiry fields are Unix timestamps. A protected failure emits one diagnostic
+envelope with the readable metadata in `inspection`; unopened manifest fields are omitted.
+Use the process exit code or envelope `exit_code` to determine success. Other failures use the
+ordinary diagnostic envelope. `--check-environment` retains its separate host-check report.
 
 ## Slices
 
@@ -34,6 +69,8 @@ flowrs run demo -i input -w work -t slice -s analyze -e report
 
 Combining `-s` and `-e` keeps the intersection of their selections. Dependencies outside the
 selection are removed. Supply any inputs the omitted steps would have produced.
+If the selected step is a gather, its scattered producers remain only as manifest inputs: their
+per-item outputs must already exist in the same task directory, and the producers are not rerun.
 
 `-k` keeps the graph but marks the named steps skipped; downstream trigger rules still apply.
 Unknown step names and empty selections are refused. Teardown steps are separate from the
@@ -62,7 +99,7 @@ With versions unchanged, these checks apply:
 | Recorded parameter was removed | Refuse resume |
 | Profile-selector value changed | Refuse, including with `--force`; remove the override or rerun from scratch |
 | A cache-key parameter changed while its producer or a descendant has retained completed results | Refuse unless `--force` is supplied |
-| Input fingerprint changed, for a pipeline declaring `cache_dir` | Refuse unless `--force` is supplied |
+| Input fingerprint changed | Refuse unless `--force` is supplied |
 | Parsed collection identity changed | Refuse, including with `--force`; restore it or start a fresh task |
 
 `--force` does not recompute retained completed steps. Use it only when you accept a directory
@@ -96,20 +133,29 @@ outputs = ["${CACHE_DIR}/analysis.txt"]
 ```
 
 Here `CACHE_DIR` is `WORK_DIR/shared`, outside individual task directories. Write cached scalar
-results there. Cached scattered results use `${ITEM_DIR}`. Declare the files needed for reuse in
-`outputs`; a cache hit checks that these paths exist. The step's status is `cached`, not `skipped`.
+results below it. Cached scattered results use a path below `${ITEM_DIR}`; the item directory root
+itself is not an output. Declare the files or directories needed for reuse in `outputs`; a cache
+hit checks that these paths exist. The declared output scope is part of cache identity, so changing
+the paths creates a new cache entry. The step's status is `cached`, not `skipped`.
 
-Cache identity tracks executable content, listed `cache_key` values, input metadata, and relevant
-upstream step identities. List the parameters that affect the result; readonly parameters cannot
-be cache keys.
+Each cache slot has a `.partial` claim marker and a `.done` publication marker. The `.done` file
+contains the `cache_key` and its publication `generation` together, so a reader observes one
+atomic record; FlowRs does not create a separate cache-key file.
+
+Cache identity tracks executable content, listed `cache_key` values, declared output scope and
+paths, input metadata, and upstream execution identities. Pipeline and step names and versions are
+not hashed, so differently named steps can share an entry when their contracts match. List every
+parameter that affects the result; readonly parameters cannot be cache keys.
 
 Input tracking uses relative paths, file sizes, and modification times rather than file-content
 hashes. Directory names and regular-file symlink targets also contribute; common OS metadata files
 are ignored. An edit preserving size and modification time can escape detection.
 
-Imported libraries, external tool versions, and parameters omitted from `cache_key` are outside
-this tracking. After such a change, use a new cache directory or remove the affected cached results.
-A new task id alone does not invalidate the shared cache.
+Imported libraries, external tool versions, thread counts, other environment values, and parameters
+omitted from `cache_key` are outside this tracking. The engine assumes output depends only on the
+executable, declared parameter values, inputs, and upstream identities. Keep other influences out
+of cached output or manage invalidation yourself. After such a change, use a new cache directory or
+remove the affected cached results. A new task id alone does not invalidate the shared cache.
 
 ### Sharing one cache directory
 
