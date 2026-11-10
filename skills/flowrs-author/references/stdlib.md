@@ -31,8 +31,8 @@ FlowRs supplies the following variables to steps, detectors, and hooks:
 | FLOWRS_VERBOSITY | 0 through 3, from -q, normal, -v, and -vv |
 | FLOWRS_ERROR_MAP | JSON map from error names to exit codes |
 
-Use FLOWRS_PIPELINE_NAME and FLOWRS_PIPELINE_VERSION for pipeline identity in reports and
-notifications. They preserve the manifest values, replace inherited environment values, and are
+Use FLOWRS_PIPELINE_NAME and FLOWRS_PIPELINE_VERSION for pipeline identity in reports and other
+hook side effects. They preserve the manifest values, replace inherited environment values, and are
 available before parameter resolution in detectors and on_start hooks too.
 
 Before starting a unit, the engine sets OMP_NUM_THREADS, OMP_THREAD_LIMIT,
@@ -175,11 +175,16 @@ Outcome variables depend on the hook phase:
 These hook outcome names are reserved parameter names. Only the current phase supplies their values;
 absent fields are not inherited from the invoking environment.
 
-Hooks do not hold thread permits. Hook failure does not change the run result. Cancellation does not
-trigger a new on_error hook; hooks already running are allowed to finish. The invocation waits for
-started hooks before its final summary and scratch cleanup; each script has a five-minute timeout.
-Missing scripts have skipped records; process launch failures only warn. Do not depend on hook
-delivery. Use a teardown step when delivery failure must fail the run.
+Hooks do not hold thread permits. Use them for author-defined side effects such as notifications,
+audit records, metrics, or external cleanup; do not use one to prepare files another step needs.
+Hook failure does not change the run result. Cancellation does not trigger a new on_error hook;
+hooks already running are allowed to finish. The invocation waits for started hooks before its final
+summary and scratch cleanup; each script has a five-minute timeout. The hook owns its operation and
+should exit nonzero when it fails. FlowRs launches the hook, captures its output, records exit 0 as
+completed and a nonzero exit as failed, and reports a warning. A wrapper that catches an internal
+error and returns 0 is recorded as completed. Missing scripts have skipped records; process launch
+failures only warn. Use a regular or teardown step when the work must produce pipeline inputs or its
+failure must fail the run.
 
 ## Configuration
 
@@ -196,15 +201,15 @@ Context path attributes are snapshots from from_env().
 
 - Bash get_config_bool is a status predicate that prints nothing: use if get_config_bool KEY; then.
   Do not compare its command-substitution output with true.
-- Bash, R, and C++ boolean getters recognize true, 1, and yes case-insensitively; other non-empty
-  values are false. Unset or empty values use the fallback.
-- Python get_config_bool strips whitespace and recognizes 1/true/yes/y/on and 0/false/no/n/off.
-  Unset or empty uses the fallback; other values raise ValueError.
+- All four boolean getters strip surrounding whitespace and recognize true, 1, yes, y, and on as
+  true, and false, 0, no, n, and off as false, case-insensitively. Any other non-empty value is
+  an error. Unset or empty uses the fallback. Bash reports it through die; Python raises
+  ValueError; R raises an error; C++ throws std::invalid_argument.
 - Python get_config_int (or cast=int) raises ValueError for malformed strings. Bash and C++ integer
   getters accept leading integer prefixes; R uses as.integer and can truncate numeric strings.
   Their integer fallbacks cover failed conversion, not strict whole-string validation.
-- Generic get_config treats an empty value as missing in Bash/R and as an empty value in Python/C++.
-  has_config is false for an unset or empty value in these languages.
+- Generic get_config treats an empty value as missing in all four languages. has_config is false
+  for an unset or empty value in all four languages.
 
 ## Validation And Commands
 
@@ -233,6 +238,10 @@ Use only the surface for the language of the unit:
 All four languages provide `read_head`, `looks_like_gzip`, `is_double_gzipped`,
 `sniff_line_ending`, `sniff_encoding`, `looks_like_fastq`, and `looks_like_fasta`.
 Python, R, and C++ also provide `read_lines`. Input-health helpers are listed below.
+
+FlowRs streams each unit's stdout and stderr to its combined log. The engine retains at most a
+64 KiB prefix of one stderr line for tag parsing and excerpts; oversized lines stay in the log but
+cannot be interpreted as detector claims.
 `timestr` and `elapsed_time` are available everywhere. Use `benchmark` in Bash or R,
 `Logger.benchmark` in Python, and `flowrs::Benchmark` in C++.
 
@@ -269,8 +278,8 @@ deeply. A file ending before the requested count is healthy; an incomplete recor
 ## Outputs And Scatter
 
 Write scalar outputs below OUT_DIR, or below CACHE_DIR when cached. Write scattered outputs below
-ITEM_DIR even when cached; the engine selects the item's root. Declare output files in the step
-manifest.
+ITEM_DIR even when cached; the engine selects the item's root, but the root itself is not an
+output. Declare output paths in the step manifest.
 
 FLOWRS_ITEM_FILE contains id, index, key, and the source fields. FLOWRS_GATHER_MANIFEST lists the
 instances a gather step must expect; item outcomes are in status.json.
