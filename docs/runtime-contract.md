@@ -41,6 +41,16 @@ detector answers or profile selection remain absent until later hooks. If parame
 fails, `on_start` and `on_failure` receive no parameters. Do not put secrets in parameters;
 resolved values are saved in `params.json`.
 
+## Hook scope and outcome
+
+Hooks are lifecycle scripts for author-defined side effects, such as notifications, audit records,
+metrics, or external cleanup. The hook owns that operation and should exit nonzero when it fails.
+FlowRs owns the execution boundary: it launches the hook, captures stdout and stderr, records exit
+0 as `completed` and a nonzero exit as `failed`, and reports a warning. A wrapper that catches an
+internal error and returns 0 is therefore recorded as completed. Hook failure still does not change
+the pipeline result; use a step or teardown step when the work must produce pipeline inputs or its
+failure must fail the run.
+
 Pass `THREADS` to tools that support a thread option. Native pools such as OpenMP, BLAS,
 NumExpr, Rayon, and Polars receive limits matching this value at startup. Multiple worker
 processes must divide the allocation among themselves.
@@ -70,8 +80,10 @@ Scripts run in the directory from which `flowrs` was launched. Use the supplied 
 instead of relative paths for data and outputs.
 
 Manifest `outputs` accept a leading `${OUT_DIR}`, `${WORK_DIR}`, or `${TMP_DIR}`, or an absolute
-path. `${CACHE_DIR}` requires a cached scalar step; scattered outputs require `${ITEM_DIR}`.
-Unknown variables, additional variables, and `.` or `..` components are rejected.
+path. A cached scalar output must be below `${CACHE_DIR}` so a cache hit can restore it. Scattered
+outputs must be below `${ITEM_DIR}`; the root itself is not an output. Unknown variables,
+additional variables, and `.` or `..` components are rejected. Steps sharing an item directory
+must declare distinct, non-overlapping output paths.
 See the [step reference](manifest-reference.md#stepsname--the-unit-of-work).
 
 The pipeline's `bin/` precedes the existing `PATH`. Python's module path includes
@@ -90,6 +102,10 @@ Detectors use `logs/detectors/<script-stem>.log`, and hooks use
 
 Logs capture stdout and stderr, including stdlib debug and trace messages that console verbosity
 hides. Use `-v` for debug or `-vv` for trace on the console. Stdout and stderr can interleave;
-use one stream when diagnostic order matters.
+use one stream when diagnostic order matters. Stdout is streamed directly to the unit log, while
+stderr is streamed to the same file and scanned for tagged lines. The engine keeps at most 64 KiB
+of any one stderr line in memory for tag parsing and excerpts; the complete bytes still remain in
+the log, and an oversized line is not interpreted as a detector claim. A failure writing or
+flushing the unit log fails the unit with an engine I/O error after the child has been drained.
 
 See [Read the result](getting-started.md#read-the-result) for the run files.
