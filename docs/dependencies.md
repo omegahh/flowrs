@@ -179,7 +179,7 @@ Teardown siblings can run together; `depends_on` does not order that batch.
 | --- | --- |
 | Archive or publish work required for a successful delivery | Teardown step |
 | Summarize specific branches after they finish | Normal step with dependencies and `all_done` |
-| Notification whose failure should not fail the run | Lifecycle hook |
+| Author-defined side effect whose failure should not fail the run | Lifecycle hook |
 
 Hooks are described in the [manifest reference](manifest-reference.md#pipelinehooks--lifecycle-scripts).
 FlowRs attempts scratch cleanup on handled exit unless `--keep-tmp` was supplied.
