@@ -31,7 +31,10 @@ detector_timeout = 60
 | `hooks`, `requires` | Lifecycle scripts and advisory environment requirements; see below |
 
 Pipeline, step, and collection names cannot be empty, contain path separators, or contain `..`.
-Use bare filenames for step executables, detectors, and hooks.
+Step `exec` paths are relative to `steps/`; detector and hook values are bare filenames. Shared
+pipeline code and supporting assets can be placed in `lib/`, `bin/`, or `hooks/`; `stdlib/` is
+supplied by FlowRs. Large reference datasets are typically managed externally and supplied through
+path parameters.
 
 <a id="stepsname--the-unit-of-work"></a>
 
@@ -53,7 +56,7 @@ outputs = ["${ITEM_DIR}/aligned.bam"]
 
 | Field | Meaning |
 | --- | --- |
-| `exec`, `label` | Required filename under `steps/` and human-readable label |
+| `exec`, `label` | Required executable path relative to `steps/` and human-readable label |
 | `depends_on` | Prerequisite step names |
 | `scatter` | Collection name; run once per item |
 | `gather` | Scattered step names whose batches must finish |
@@ -81,9 +84,11 @@ outputs = ["${OUT_DIR}/summary.tsv"]
 ```
 
 Scalar outputs accept a leading `${OUT_DIR}`, `${WORK_DIR}`, `${TMP_DIR}`, or an absolute path.
-`${CACHE_DIR}` requires `cache = true`. Scattered outputs require `${ITEM_DIR}`, including cached
-outputs. `${INPUT_DIR}`, unknown or additional variables, and `.` or `..` components are refused.
-Steps sharing an item's directory must declare distinct output paths.
+`${CACHE_DIR}` requires `cache = true`; a cached scalar output must be below `${CACHE_DIR}` so a
+hit can restore it. Scattered outputs must be below `${ITEM_DIR}`, including cached outputs; the
+root itself is not an output. `${INPUT_DIR}`, unknown or additional variables, and `.` or `..`
+components are refused. Steps sharing an item's directory must declare distinct, non-overlapping
+output paths.
 
 See [Dependencies and parallelism](dependencies.md) for trigger rules, thread allocations,
 scatter/gather, and teardown, and [Caching](running.md#caching) for reuse limits.
@@ -278,8 +283,16 @@ on_failure = ["failure.sh"]
 on_error.NO_INPUT_DATA = ["no-input.sh"]
 ```
 
-Names resolve under `hooks/`. Extensions select interpreters, as for steps. Hooks are
-notifications: their failure warns without changing the run outcome.
+Names resolve under `hooks/`. Extensions select interpreters, as for steps. Hooks are lifecycle
+scripts for author-defined side effects such as sending a notification, writing an audit record,
+emitting a metric, or cleaning up an external resource. They run outside the DAG: a step does not
+wait for a hook, and a hook's output is not a dependency. Use a regular or teardown step when the
+work must produce pipeline inputs or when its failure must fail the run.
+
+The hook owns its operation and should exit nonzero when that operation fails. FlowRs owns the
+execution boundary: it launches the hook, captures its output, records exit 0 as completed and a
+nonzero exit as failed, and reports a warning without changing the run outcome. A wrapper that
+catches an internal error and returns 0 is therefore recorded as completed.
 
 | Hook | When it starts |
 | --- | --- |
@@ -290,7 +303,7 @@ notifications: their failure warns without changing the run outcome.
 
 Hooks run asynchronously; do not use `on_start` to prepare files required by steps. The invocation
 waits for started hooks before reporting its final result; each script has a five-minute timeout.
-Early refusals before `on_start`, such as licence failure, do not fire hooks.
+Early refusals before `on_start`, such as a package-access failure, do not fire hooks.
 
 `on_start` sees paths and parameters independent of detection or profile selection. Parameters that
 depend on detector answers or profile selection are absent. `on_success` receives `EXIT_CODE=0` and
@@ -303,10 +316,10 @@ Outcome variables from other phases are absent.
 `NOT_EXECUTABLE`, `COMMAND_NOT_FOUND`, `UNKNOWN_ERROR`, and signal errors. Hooks receive
 `THREADS=1`; keep them lightweight. Logs are under `logs/hooks/`; outcomes appear in
 `status.json.lifecycle_hooks`. Process launch failures warn without a record; a missing script
-is recorded as skipped. Hook delivery is not guaranteed.
+is recorded as skipped. A hook's side effect is not guaranteed.
 
 Use a regular step to gate the run or a [teardown step](dependencies.md#teardown-steps) for
-delivery work whose failure must fail the run.
+side-effect work whose failure must fail the run.
 
 ### `[pipeline.requires]` - environment notes
 
