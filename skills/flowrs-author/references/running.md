@@ -5,7 +5,7 @@
 - Commands
 - Create, compile, and inspect
 - Run options
-- Licence gates and slices
+- Package access and slices
 - Resume, threads, scatter, and cache
 - Signals, scratch, packaging, and registry
 
@@ -17,15 +17,10 @@ Use the command that matches the operation:
 | --- | --- |
 | `flowrs create NAME` | Create a scaffold |
 | `flowrs create NAME --update` | Replace binary-owned scaffold files |
-| `flowrs compile DIR` | Clean and rebuild with Makefile when present, then validate; write no package |
-| `flowrs compile DIR -o FILE` | Validate and write a plain .flowpkg |
-| `flowrs compile DIR -o FILE --encrypt` | Validate and write a protected .flowpkg |
+| `flowrs compile DIR` | Clean and rebuild with Makefile when present, then validate |
+| `flowrs compile DIR -o FILE.flowpkg` | Validate and create a packaged pipeline (plaintext `.flowpkg`) |
 | `flowrs inspect PIPELINE` | Show the manifest projection |
 | `flowrs inspect PIPELINE --check-environment` | Check declared host tools and libraries |
-| `flowrs license fingerprint` | Print the machine fingerprint |
-| `flowrs license add FILE` | Validate and install a licence |
-| `flowrs license status` | Validate the licence found on the search path |
-| `flowrs license status --file FILE` | Validate one licence file |
 | `flowrs registry add PATH [--name NAME]` | Register a directory or package |
 | `flowrs registry list [--detailed] [--json]` | List registered pipelines |
 | `flowrs registry remove NAME` | Remove a registration |
@@ -33,8 +28,11 @@ Use the command that matches the operation:
 
 PIPELINE accepts a registered name, a directory, or a .flowpkg path. compile --json emits a
 diagnostic envelope on stdout for success and failure. inspect --json emits its projection on
-success and an envelope only on failure. run has no --json; use status.json.
-Argument-parser errors can exit 2 with usage on stderr and no JSON; check stdout before parsing.
+success and an envelope only on failure. Every source shares top-level manifest fields such as
+name, version, steps, and parameters; type and source identify its state and location. Protected
+sources add authorization. If access fails, the envelope includes inspection with the readable
+metadata; unopened manifest fields are omitted. run has no --json; use status.json.
+Argument-parser errors exit 64 with usage on stderr and no JSON; check stdout before parsing.
 
 ## Create
 
@@ -55,16 +53,23 @@ flowrs compile ./demo --json
 flowrs inspect ./demo
 flowrs inspect ./demo --json
 flowrs inspect ./demo --check-environment
-flowrs compile ./demo -o demo.flowpkg
-flowrs compile ./demo -o demo-protected.flowpkg --encrypt
 ~~~
 
-Without -o, compile writes no package. With -o, missing step or detector executables are fatal.
+Compile validates the source tree and writes no package. Missing step or detector executables are fatal.
 A Makefile must provide a clean target that removes its compiled outputs. When a Makefile exists, compile runs
 make clean, then make before validation, rebuilding even after header-only changes. Either command
-failing stops compilation and packaging. Missing executables without -o produce warnings; check
-that referenced files exist before running. Running a plain package
-needs no licence; running a protected package needs a valid licence and matching pipeline grant.
+failing stops compilation. Missing hooks produce warnings. A supplied `.flowpkg` may require access
+configured by its publisher. If FlowRs cannot open a package, report the exact error and package
+version to the publisher. Step executables must be at the paths declared by the manifest, relative
+to steps/. Files shared across steps can be placed in lib/, bin/, hooks/, or stdlib/.
+
+Inspect shows basic identity and source metadata first, then Authorization for a protected package,
+then Pipeline settings, steps, parameters, constraints, errors, and hooks. Authorization includes
+server/customer names, machine permission, grant scope, available run capacity when limited, and
+access expiry with time remaining. A full run quota still permits inspection. A refusal preserves
+the basic metadata and ends with the error on stderr; send the publisher that error and version.
+Use -v for technical IDs and fingerprints. Source paths refer to the supplied pipeline, not its
+temporary extraction directory.
 
 For ELF checks, install `readelf` (binutils) and put `ldconfig` on PATH. Inspection reads dependency
 metadata without executing pipeline binaries. It checks direct and transitive library presence,
@@ -74,14 +79,12 @@ using those tokens can produce missing-library reports.
 | Command | Additional flags |
 | --- | --- |
 | `create` | `-d, --description TEXT`; `--update` |
-| `compile` | `-o, --output FILE`; `--encrypt`; `--sign-with FILE` (RSA private PEM); `--author NAME`; `--json` |
+| `compile` | `--json` |
 | `inspect` | `--check-environment`; `--json` |
 | `registry add` | `--name NAME` |
 | `registry list` | `-d, --detailed`; `--json` |
-| `license status` | `--file FILE` |
 
-`--encrypt`, `--sign-with`, and `--author` require `-o`. Use `-h, --help` on each command
-and `flowrs -V, --version` for the installed version.
+Use `-h, --help` on each command and `flowrs -V, --version` for the installed version.
 
 ## Run
 
@@ -128,27 +131,24 @@ Output flags are global:
 -q wins over -v. A run claims its output directory for the duration; do not run two processes
 against one task directory.
 
-## Licence Gates
+## Package Access
 
-Install a licence before running a protected package:
+A supplied `.flowpkg` may need access configured by its publisher. If FlowRs reports an access
+failure or cannot open a package group, do not change the artifact or invent credentials. Send the
+publisher the exact error, package version, and exit code.
 
-~~~bash
-flowrs license fingerprint
-flowrs license add LICENSE_FILE
-flowrs license status
-~~~
-
-The search order is ./flowrs.license, ./license.json, /etc/flowrs/license.json, and
-~/.flowrs/license.json. Protected packages need a valid licence plus
-pipeline_grants[PIPELINE_NAME] matching their source digest. A non-empty machine list must include
-this machine; an empty list permits any machine. Plaintext directories and packages do not consult
-a licence.
+Exit 79 or a message that no access is available means the current runner cannot use that package.
+If a message says a group could not be opened or decrypted, the access material did not authenticate
+that group, or the package may be incomplete. Pipeline edits cannot fix either cause; report the
+exact error and package version to the publisher.
 
 ## Slices
 
 -s and -e produce a fresh subgraph. -k skips named steps while preserving graph edges. Reject an
 undeclared step name. --resume cannot be combined with any of these three flags. Teardown steps
 are not removed by a slice and are scheduled after the selected main graph.
+When -s selects a gather step, its scattered producers are manifest inputs only: their per-item
+outputs must already exist in the same task directory, and they are not rerun.
 
 ## Resume
 
@@ -164,7 +164,7 @@ loads the prior params.json as a baseline, while new -p and -c values override i
 parameters resolve from the current manifest's defaults, including profile overrides, instead of
 the baseline. Explicit -p and -c overrides of readonly parameters are refused.
 
-The engine compares engine version, pipeline version, input fingerprint when caching is enabled,
+The engine compares engine version, pipeline version, and the input fingerprint,
 and collection digests for scattered steps. A changed version starts the pipeline from scratch in
 the existing directory. With versions unchanged, a profile-selector override that changes its
 value is refused even with --force; remove the override or rerun from scratch. A changed input
@@ -202,12 +202,18 @@ outputs = ["${CACHE_DIR}/aligned.bam"]
 ~~~
 
 The cache identity includes the executable bytes, input-tree stat fingerprint, declared cache-key
-values, parsed collection identity, and relevant upstream identities, including uncached intermediate
-executables. Declare cached outputs in outputs; hits check their existence, not content integrity.
+values, the declared output scope and paths, parsed collection identity, and upstream execution
+identities, including uncached intermediate executables and their declared cache-key parameters.
+Pipeline and step names and versions are not hashed; differently named steps share an entry when
+their contracts match. Declare cached outputs in outputs; hits check their existence, not content
+integrity.
 Input stat tracking uses relative paths, sizes, mtimes, directory names, and regular-file symlink
 spelling/resolved metadata, ignoring common OS metadata files. Same-size, same-mtime edits can escape it.
-Imported libraries, external tools, and unlisted parameters are outside tracking. Use a new cache
-directory or remove affected entries after these change; a new task id alone is insufficient.
+Imported libraries, external tools, thread counts, other environment values, and unlisted parameters
+are outside tracking. The engine assumes outputs depend only on the executable, declared parameters,
+inputs, and upstream identities. Keep other influences out of cached output or manage invalidation
+yourself. Use a new cache directory or remove affected entries after these change; a new task id
+alone is insufficient.
 
 A cache hit is cached, not skipped. Writers may replace an entry while another run uses it.
 Consumed publications are checked before and after each executing step, including teardown.
@@ -237,3 +243,11 @@ flowrs registry remove demo
 
 Package registration copies .flowpkg files into content-addressed storage. Directory registration
 keeps a path reference. Use a registry name with run or inspect. Compile accepts a pipeline directory.
+
+Read the registry `Type` column or JSON `type` field as follows:
+
+| State | Source |
+| --- | --- |
+| `plaintext` | A pipeline directory |
+| `packaged` | A plaintext `.flowpkg` file |
+| `protected` | A publisher-provided `.flowpkg` release requiring authorization |
