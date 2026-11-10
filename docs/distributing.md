@@ -1,86 +1,55 @@
-# Distributing a pipeline
+# Share a pipeline
 
-## Validate, then package
-
-Validate a pipeline directory without writing a package:
+FlowRs pipelines can be shared as source directories or as `.flowpkg` files. Validate a source
+tree before handing it to another runner:
 
 ```bash
 flowrs compile demo
+flowrs inspect demo --check-environment
 ```
 
-If the directory has a Makefile, compile runs `make clean`, then `make`, before validation.
-Provide a clean target that removes compiled outputs. A build failure stops compilation.
-Missing step, detector, or hook files produce warnings when validating without a package;
-resolve those before distributing.
+If the directory has a Makefile, `compile` runs `make clean`, then `make`, before validation.
+Provide a clean target that removes compiled outputs. Missing step or detector files are fatal;
+missing hooks remain warnings.
 
-Create a plain package:
+Keep the manifest, `steps/` tree, helper files, detectors, hooks, standard library, and any build
+sources together. Step executables must be at the paths declared by the manifest, relative to
+`steps/`. `bin/` holds detectors and helper executables; `lib/` holds shared scripts, native
+libraries, and supporting assets; `hooks/` holds lifecycle scripts and small helpers; and `stdlib/`
+is supplied by FlowRs. Large reference datasets such as genome indexes and search databases are
+typically managed externally and passed by path parameter.
+
+Create a packaged pipeline (a plaintext `.flowpkg`) from a validated source tree:
 
 ```bash
 flowrs compile demo -o demo.flowpkg
 ```
 
-Packaging requires step and detector executables; missing hooks remain warnings.
-A plain `.flowpkg` has readable contents and needs no licence or grant to run.
+Package documents, including the manifest, must each fit within 1 MiB. An extracted package tree
+is limited to 1 GiB of expanded TAR data and 10,000 archive entries across all its payloads.
+These limits also apply when inspecting a package. Keep large datasets outside the package and
+pass their paths as parameters.
 
-## Protected packages
-
-Protect the source payloads with encryption:
-
-```bash
-flowrs compile demo -o demo-protected.flowpkg --encrypt
-```
-
-Running this package needs a valid licence and a matching grant for its source
-content. If the licence lists machines, this machine must be included; an empty list allows
-any machine. A valid licence without the grant is insufficient. See
-[licence installation](getting-started.md#install-a-licence-for-protected-packages).
-
-Encrypted packages require the v3 key scheme, which keeps package names and versions distinct
-even when they contain separators. Rebuild v2 packages and reissue their grants before using them
-with this build, even if the source content is unchanged. `license-gen --grant` reads the scheme
-from the supplied package and refuses unsupported schemes.
-
-Use `--sign-with private_key.pem` when packaging to add a signature verified against FlowRs'
-embedded trust key. Signing with an unrelated key does not establish trust for recipients.
-
-## Request a grant
-
-Send the protected package and the requested machine identity to your group's licence issuer.
-The issuer can include the package grant when generating a licence:
+A runner can pass that file directly to `flowrs run`, or register it for name-based execution:
 
 ```bash
-license-gen generate -p private_key.pem -l "Field Test" -d 30 \
-  --machine <fingerprint> --grant demo-protected.flowpkg -o flowrs.license
-```
-
-The grant covers that named source build. Editing bundled content, including the manifest,
-scripts, libraries, or stdlib, requires a grant matching the new package.
-A hardware replacement or operating-system reinstall can change machine identity and require
-reissue of a machine-restricted licence.
-
-## Register a name
-
-```bash
+flowrs run demo.flowpkg -i input -w work
 flowrs registry add demo.flowpkg --name demo
-flowrs registry list
 flowrs run demo -i input -w work -t run001
 ```
 
-Package registration copies the package into managed storage. Directory registration keeps a
-reference to the directory, so edits there affect later runs.
+Protected releases require access configured by their publisher. If FlowRs reports an access problem or
+cannot open a package, send the publisher the exact error and package version. Do not modify the
+package to work around the failure.
 
-The list shows name, version, type, and file. For protected packages, the authorization marker
-indicates whether this machine has a valid licence and matching grant.
-Use `flowrs license status` for licence details.
+`flowrs registry list --detailed` shows stored paths and whether they exist; `--json` emits the
+list as JSON. The `Type` column and JSON `type` field use these pipeline states:
 
-`--detailed` includes full stored package paths and checks whether each path exists, in both text
-and JSON output. Without it, managed packages use short filenames; directory paths remain unchanged.
+| State | Source |
+| --- | --- |
+| `plaintext` | A pipeline directory |
+| `packaged` | A plaintext `.flowpkg` file |
+| `protected` | A publisher-provided `.flowpkg` release requiring authorization |
 
-```bash
-flowrs registry list --detailed
-flowrs registry list --json
-flowrs registry remove demo
-```
-
-Removing a registration removes the name. Use the original pipeline path to run it without
+Removing a registration removes its name. Use the original pipeline path to run it without
 registration.
