@@ -70,7 +70,9 @@ cache_key = ["reference"]
 teardown = false
 ~~~
 
-- exec names a file under steps/; label is required and is shown in output and status.json.
+- exec names a relative file under steps/. Nested paths are allowed; each /-separated segment
+  must be nonempty, not ., and without backslashes or .. sequences. label is required and is
+  shown in output and status.json.
 - depends_on is a list of declared step names. It creates graph edges.
 - threads is "auto" or an integer of at least 1. Omit it for "auto". Fixed counts above the
   run budget are reduced to that budget; scripts must use the supplied THREADS allocation.
@@ -131,8 +133,14 @@ detector = "detect_quality.sh"
   required = true field.
 - description is display text. group is UI metadata and must name an existing [groups.NAME].
 - min and max are inclusive numeric bounds. exclusive_min and exclusive_max are strict numeric
-  bounds. increment applies only to integer and number params, and values must be spaced by it
-  from min when present, or zero otherwise.
+  bounds. increment applies only to integer and number params, requires an effective min anchor,
+  and values must be spaced from that min. Integer increments and anchors must be whole numbers.
+- A value constrained by increment must equal min + n * increment for a non-negative integer n
+  and satisfy every inclusive and exclusive bound. Defaults follow the same rule. An enum used
+  with increment must contain at least one value on the sequence within the effective bounds.
+- Number increment alignment tolerates floating-point rounding at the value and anchor's scale,
+  capped at one millionth of the increment. Integer alignment is exact; inclusive and exclusive
+  bounds and enum membership use no tolerance.
 - enum restricts values to a typed list. Values are coerced to the declared type before checking.
 - readonly = true refuses explicit -p and -c overrides. A readonly parameter needs a default or a
   profile default.
@@ -246,6 +254,13 @@ exit as failed, and reports a warning. A wrapper that catches an internal error 
 recorded as completed. Use a regular or teardown step when the work must produce pipeline inputs or
 its failure must fail the run. Cancellation does not trigger a new on_error hook.
 
+Each on_error.CODE list runs once on that code's first occurrence per invocation, including a
+resumed invocation. Its scripts run in list order, and error batches run one at a time outside the
+step budget. Repeated failures do not retry a batch, even when a hook fails, times out, is missing,
+or cannot launch. Distinct codes get separate batches; status.json still records every failed item.
+The run waits for admitted batches, including those queued before cancellation. Each script gets
+its five-minute timeout when it starts.
+
 ## Collections
 
 ~~~toml
@@ -257,8 +272,9 @@ format = "tsv"
 
 format is tsv, json, or omitted to infer from the file extension. TSV has a header row and
 tab-separated records. JSON is an array of objects. id_column is the TSV column or JSON key that
-holds each item id. Collection names are single path components. Item ids are data values and are
-encoded by the engine before reaching a path.
+holds each item id. Collection names are single path components: nonempty, not ., and without
+separators or .. sequences. Item ids are data values and are encoded by the engine before reaching
+a path.
 
 Use an absolute source or a path relative to INPUT_DIR. Only a leading `${INPUT_DIR}` expands;
 other variables are refused during manifest validation.
@@ -298,8 +314,8 @@ description = "Quality filtering"
 order = 1
 ~~~
 
-Requirements are advisory and are checked only by flowrs inspect --check-environment. Groups are
-UI organization metadata. order defaults to 0.
+Requirements are advisory and are checked only by flowrs inspect --check-environment. Python imports
+are checked with python3. Groups are UI organization metadata. order defaults to 0.
 
 ## Complete Example
 
