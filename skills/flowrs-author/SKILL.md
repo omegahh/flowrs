@@ -74,9 +74,9 @@ names and value shapes; the compiler supplies cross-field and graph validation.
   changes; change or clear the cache directory when an untracked dependency changes.
 - Parameter resolution is `readonly gate > -p/-c > detected > profile default > base default >
   unset`. Supply `-p KEY=VALUE` or `-c FILE` when no earlier tier can provide a required value.
-- `64` means fix the invocation or supplied value; `78` means fix the manifest; `77` or `79` means
-  the package cannot be used with the current local access setup. A step can return these numbers
-  too, so use its `status.json` record to identify the source.
+- `64` means fix the invocation, supplied value, or local protected-release configuration;
+  `78` means fix the manifest; `77` or `79` means customer policy or release access refused the
+  package. A step can return these numbers too, so use its `status.json` record to identify the source.
 
 ## Minimal pipeline
 
@@ -123,7 +123,7 @@ flowrs run . -i input -w work -t run001
 ## Boundaries
 
 - Do not invent manifest keys. Unknown fields are errors; consult the schema asset.
-- Do not put secrets in parameters; resolved values are recorded in `params.json`.
+- Do not put secrets in parameters; resolved values are recorded in `status.json.params`.
 - Do not treat a hook as a dependency or a guarantee that its side effect happened.
 - Do not treat an item id as a filesystem path component; use `${ITEM_DIR}` and the engine-provided
   item metadata.
