@@ -142,6 +142,11 @@ If a message says a group could not be opened or decrypted, the access material 
 that group, or the package may be incomplete. Pipeline edits cannot fix either cause; report the
 exact error and package version to the publisher.
 
+When protected-release setup fails before steps start, exit 64 means local access configuration is
+missing or invalid; check `FLOWRS_RELEASE_SERVER`, `FLOWRS_RELEASE_CA`, and `FLOWRS_IDENTITY`.
+Exit 70 indicates a server, endpoint, or server-response problem. Give the server operator the
+exact error and correlation ID when one is present.
+
 ## Slices
 
 -s and -e produce a fresh subgraph. -k skips named steps while preserving graph edges. Reject an
@@ -152,17 +157,38 @@ outputs must already exist in the same task directory, and they are not rerun.
 
 ## Resume
 
-Resume in the same task directory:
+Resume the same pipeline name in the same task directory:
 
 ~~~bash
 flowrs run PIPELINE -i INPUT_DIR -w WORK_DIR -t RUN_ID --resume
 ~~~
 
+### What Resume Compares
+
+FlowRs records a fingerprint of the complete `-i` tree and compares it with the current tree
+when resuming. A difference refuses the resume unless `--force` is supplied.
+
+Keep `-w` outside `-i`. If the work directory is inside the input directory, the run's own
+outputs, logs, and `status.json` become part of the input tree. By default, scratch is under the
+output directory too. These files change as the run proceeds, so a later `--resume` sees a
+different input fingerprint. If `--tmp-dir` is set, keep that path outside `-i` as well.
+
+Resume applies to the same pipeline name and the same output directory selected by `-w` and `-t`.
+It also refuses a changed collection identity or profile selector. Use a new work directory or
+task ID to start anything else.
+
 Resume replays the prior planned step set and retains completed uncached steps. Cached steps
 reenter cache handling, and teardown steps run again. It
-loads the prior params.json as a baseline, while new -p and -c values override it. Readonly
+loads the prior status.json.params as a baseline, while new -p and -c values override it. Readonly
 parameters resolve from the current manifest's defaults, including profile overrides, instead of
 the baseline. Explicit -p and -c overrides of readonly parameters are refused.
+
+The accepted parameters and execution state are written together in status.json after resume
+validation. A refused resume preserves the prior parameters and step results. A record without
+params has no accepted parameter set; run without --resume to start fresh.
+
+The manifest's pipeline.name must match the recorded run. A different name is refused even with
+--force or changed versions; use the original pipeline or start a fresh task.
 
 The engine compares engine version, pipeline version, and the input fingerprint,
 and collection digests for scattered steps. A changed version starts the pipeline from scratch in
@@ -221,13 +247,25 @@ Replacement fails the affected run with CACHE_INPUT_CHANGED (121), even if the o
 key is restored, and affected consumers do not publish derived cache entries. Resolve the conflict
 and rerun. Checks do not lock readers or undo a step's external side effects.
 
+Scattered cache hits copy declared outputs into the task's item directory and recheck the
+publication after copying. A replacement during restoration fails the item with
+CACHE_INPUT_CHANGED (121) and removes its incomplete restored outputs, preserving other steps'
+files. Siblings finish normally. This also applies to restoration for skipped or resumed steps.
+
 ## Signals And Scratch
 
 SIGINT, SIGTERM, SIGHUP, and SIGQUIT cancel a run and normally return 128 + signal_number. Running
 processes are killed as a group. Cancellation during scheduling skips unstarted steps with reason
 cancelled; earlier cancellation can leave them pending. Teardown steps do not start after
 cancellation. on_failure runs once the hook lifecycle has started; on_error does not run for cancellation.
+Error-hook batches admitted before cancellation still run, one batch at a time, with a timeout per
+script once it starts. Repeated failures of the same code do not enqueue more batches.
 A second signal exits at once without waiting for hooks or a final status.json.
+Cache I/O has a five-minute idle limit, reset by copy progress. On cancellation or timeout, a
+worker gets five seconds to stop; if it remains stuck, FlowRs terminates with claims and scratch
+retained and status.json may be incomplete. A second signal also retains them while cache I/O is
+active. Restore filesystem access and verify the previous processes have exited before using
+--resume to recover the stale run claim. Kernel I/O waits can delay process termination.
 SIGKILL, power loss, and machine reset cannot be handled.
 
 FlowRs attempts to remove scratch on success, failure, and handled cancellation unless --keep-tmp
