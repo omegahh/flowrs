@@ -78,18 +78,44 @@ Unknown step names and empty selections are refused. Teardown steps are separate
 
 ## Resume
 
-Use the same work directory and task id:
+Use the same pipeline name, work directory, and task id:
 
 ```bash
 flowrs run demo -i input -w work -t run001 --resume
 ```
 
+### What Resume Compares
+
+FlowRs records a fingerprint of the complete `-i` tree and compares it with the current tree
+when resuming. A difference refuses the resume unless `--force` is given.
+
+Keep `-w` outside `-i`. If the work directory is inside the input directory, the run's own
+outputs, logs, and `status.json` become part of the input tree. By default, scratch is under the
+output directory too. These files change as the run proceeds, so a later `--resume` sees a
+different input fingerprint. If `--tmp-dir` is set, keep that path outside `-i` as well.
+
+Resume applies to the same pipeline name and the same output directory selected by `-w` and `-t`.
+It also refuses a changed collection identity or profile selector. Use a new work directory or
+task ID to start anything else.
+
 Resume uses the prior run's selected steps and recorded parameters. It cannot be combined with
 `-s`, `-e`, or `-k`. Completed uncached steps are retained; cached steps check their cache entries.
 Teardown steps run again.
 
+`status.json` records the accepted parameters in `params`, alongside pipeline identity and results.
+Names are uppercase and values are strings, matching the step environment. Parameters and initial
+execution state are written atomically after resume checks pass. A refused resume preserves the
+prior terminal status, parameters, and step results; failure-hook executions may still be appended.
+If no parameter set was accepted, `params` is absent; start without `--resume` to resolve parameters
+afresh.
+
 Explicit `-p`/`-c` values override recorded parameters. Readonly parameters resolve from the
-current manifest, including profile defaults; explicit overrides of them are refused.
+current manifest, including profile defaults; explicit overrides of them are refused. If a readonly
+value differs from the recorded value, resume warns that completed steps may retain results from the
+old value. Bump `pipeline.version` to start a full run under the new value.
+
+The manifest's `pipeline.name` must match the recorded run. A different name is refused even
+with `--force` or changed versions; use the original pipeline or start a fresh task.
 
 An engine or `pipeline.version` change starts a full run in the existing output directory.
 With versions unchanged, these checks apply:
@@ -166,16 +192,33 @@ A replacement is detected even if the original cache key is restored. Affected c
 publish derived cache entries; rerun after resolving the conflict. These checks detect replacement
 rather than locking readers, and do not undo a step's external side effects.
 
+Scattered cache hits copy their declared outputs into the task's item directory and check the
+publication again after the complete copy. A replacement during restoration fails the item with
+`CACHE_INPUT_CHANGED` (121) and removes its incomplete restored outputs. Other steps' files in
+the same item directory are preserved, and scattered siblings finish normally. This check also
+applies when restoring cached outputs for a skipped or resumed step.
+
 ## Signals and scratch
 
 `SIGINT`, `SIGTERM`, `SIGHUP`, and `SIGQUIT` cancel a run and stop its running step processes.
 The exit code is normally `128 + signal` (`130` for Ctrl-C); an earlier failure can retain its
-own code. `status.json` records `cancelled_by`. A second signal exits at once, removing the run's
-claim and scratch, without waiting for hooks or writing a final `status.json`.
+own code. `status.json` records `cancelled_by`. A second signal forces exit without waiting for
+hooks or writing a final `status.json`.
+
+Cache filesystem operations have a five-minute idle limit; copying another chunk resets it.
+Cancellation or an idle timeout gives the worker five seconds to stop and clean up. If a filesystem
+call remains stuck, FlowRs kills its child process groups and exits (`128 + signal` for cancellation,
+70 for an idle timeout). It retains claims and scratch because releasing them while a worker can
+still write would permit overlapping runs. A second signal also retains them when cache I/O is
+active; otherwise it attempts cleanup. Restore filesystem access, verify the previous processes
+have exited, then use `--resume` to recover the stale run claim. This forced exit may leave
+`status.json` incomplete. An uninterruptible kernel I/O wait can delay actual process death even
+after termination is requested.
 
 Pending main and teardown steps do not start after cancellation. Cancellation does not fire
-`on_error`; `on_failure` runs once the lifecycle has started. Started hooks are allowed to finish,
-subject to their timeout. `SIGKILL`, power loss, and machine resets cannot be handled.
+`on_error`; `on_failure` runs once the lifecycle has started. Admitted hooks are allowed to finish,
+including queued error-hook batches, with each script's timeout starting when it executes.
+`SIGKILL`, power loss, and machine resets cannot be handled.
 
 FlowRs attempts to remove scratch on success, failure, and handled cancellation unless the
 invocation included `--keep-tmp`. Supply it before reproducing a failure:
