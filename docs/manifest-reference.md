@@ -30,8 +30,9 @@ detector_timeout = 60
 | `detector_timeout` | Seconds per detector execution; default 60 |
 | `hooks`, `requires` | Lifecycle scripts and advisory environment requirements; see below |
 
-Pipeline, step, and collection names cannot be empty, contain path separators, or contain `..`.
-Step `exec` paths are relative to `steps/`; detector and hook values are bare filenames. Shared
+Pipeline, step, and collection names cannot be empty, be `.`, contain path separators, or contain `..`.
+Step `exec` paths are relative to `steps/`, with each `/`-separated segment following the same rule;
+detector and hook values are bare filenames following that rule. Shared
 pipeline code and supporting assets can be placed in `lib/`, `bin/`, or `hooks/`; `stdlib/` is
 supplied by FlowRs. Large reference datasets are typically managed externally and supplied through
 path parameters.
@@ -144,7 +145,7 @@ enum = [10, 20, 30]
 | `description` | Text shown by inspect |
 | `min`, `max` | Inclusive numeric bounds |
 | `exclusive_min`, `exclusive_max` | Strict numeric bounds |
-| `increment` | Numeric spacing from `min`, or zero when `min` is absent |
+| `increment` | Numeric spacing from `min`; requires an effective `min` anchor |
 | `enum` | Typed list of permitted values |
 | `group` | Name of a declared parameter group |
 | `readonly` | Refuse explicit `-p`/`-c` overrides; default false |
@@ -152,7 +153,14 @@ enum = [10, 20, 30]
 | `profiles` | Categories selected by this parameter's value |
 | Profile sub-tables | Category-specific default and numeric bounds |
 
-Numeric bounds, increment, and enum apply together. Integer increments must be whole numbers.
+Numeric bounds, increment, and enum apply together. An increment requires `min`; integer increments
+and integer minimum anchors must be whole numbers. A value is valid only when it is `min + n *
+increment` for a non-negative integer `n` and also satisfies all inclusive and exclusive bounds.
+Defaults follow the same rule, and an enum must contain at least one value on that sequence within
+the effective bounds.
+Number increment alignment allows floating-point rounding at the scale of the value and anchor,
+capped at one millionth of the increment. Integer alignment is exact. This tolerance does not relax
+inclusive or exclusive bounds, or enum membership.
 Parameter names are case-insensitive when supplied; scripts receive uppercase environment names.
 
 Resolution uses, highest first:
@@ -209,7 +217,7 @@ fails. A nonzero exit, timeout, duplicate answer, or invalid value fails the run
 Detector logs are under `logs/detectors/`. Available successful detected values are grouped by
 script in `status.json.detectors`; this is not a complete detector execution history. Silent or
 failed executions can lack records, so consult logs and the run's failure. Resolved values are
-saved in `params.json`.
+saved in `status.json.params`.
 
 ### `profiles` - category-specific defaults
 
@@ -299,11 +307,18 @@ catches an internal error and returns 0 is therefore recorded as completed.
 | `on_start` | After pipeline loading, before detection |
 | `on_success` | After successful main and teardown work |
 | `on_failure` | After failure or handled cancellation, once the lifecycle has started |
-| `on_error.CODE` | After a step or detector process fails with that resolved code; excludes cancellation |
+| `on_error.CODE` | Once per run, on the first step or detector failure with that resolved code; excludes cancellation |
 
 Hooks run asynchronously; do not use `on_start` to prepare files required by steps. The invocation
 waits for started hooks before reporting its final result; each script has a five-minute timeout.
 Early refusals before `on_start`, such as a package-access failure, do not fire hooks.
+
+Each `on_error.CODE` list is admitted once per invocation, including a resumed invocation. Its
+scripts run in list order, and error-hook batches run one at a time outside the step thread budget.
+Repeated failures with the same code do not launch another batch, even if a hook fails, times out,
+is missing, or cannot launch. Distinct codes each get their own batch. All instance failures remain
+in `status.json`; `on_failure` still runs once at the end. The run waits for admitted batches,
+including those queued before cancellation, and each script's timeout starts when it executes.
 
 `on_start` sees paths and parameters independent of detection or profile selection. Parameters that
 depend on detector answers or profile selection are absent. `on_success` receives `EXIT_CODE=0` and
@@ -332,7 +347,7 @@ r = ["ggplot2"]
 
 Requirements install nothing and are not checked by run. Use
 `flowrs inspect PIPELINE --check-environment` on the execution machine.
-Python entries are import names, not distribution names.
+Python entries are import names, not distribution names, and are checked with `python3`.
 
 For pipeline directories, ELF checks need `readelf` and `ldconfig` on `PATH`. They check direct
 and transitive library presence, not symbols or versions. `$ORIGIN` paths are supported;
