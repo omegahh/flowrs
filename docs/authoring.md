@@ -71,8 +71,9 @@ Before handing a pipeline to an operator, validate it without creating a package
 flowrs compile demo
 ```
 
-To share a source pipeline, provide the complete validated directory. For a portable `.flowpkg`,
-give the validated source to the FlowRs release maintainer and request a package for distribution.
+To share a source pipeline, provide the complete validated directory. Create a plaintext package
+with `flowrs compile demo -o demo.flowpkg`. For a protected release, contact the publisher or
+FlowRs release maintainer.
 
 The [exit-code reference](exit-codes.md) documents the stable codes and machine-readable
 diagnostics that wrappers and workflow systems should consume.
