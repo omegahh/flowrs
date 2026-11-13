@@ -31,6 +31,7 @@ leave no record. Check that the file belongs to this invocation before using a p
 | started_at | string | RFC 3339 start time |
 | finished_at | string, absent | RFC 3339 finish time |
 | detectors | object, absent | Available successful detected values grouped by unit name |
+| params | object, absent | Accepted parameter set: uppercase names mapped to string values |
 | profile | string, absent | Selected profile category |
 | lifecycle_hooks | object, absent | Hook execution records |
 | steps | object | Step and scattered-instance records keyed by step or step/item key |
@@ -44,6 +45,9 @@ leave no record. Check that the file belongs to this invocation before using a p
 The top-level status is completed only when the run and all required teardown work succeed. A
 cancelled run finalizes as failed and sets cancelled_by. Ordinary step failures are recorded on
 their step; failure records an error reported by the run layer, including setup failures.
+
+An empty params object means the run accepted a parameter set with no parameters. An absent
+params field means no resolved set was accepted; it cannot supply a resume baseline.
 
 ## Step Status
 
@@ -112,6 +116,8 @@ script share a record.
 ## Hook Records
 
 lifecycle_hooks contains on_start, on_success, on_failure, and on_error maps/lists when hooks ran.
+on_error is keyed by error code and records one admitted script batch per code in this invocation.
+Repeated item failures remain in the item rows and do not add duplicate hook executions.
 Hook status reflects the process exit code: exit 0 is `completed`, and a nonzero exit is `failed`.
 FlowRs captures hook output and records the status. Each hook execution records:
 
