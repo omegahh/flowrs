@@ -19,6 +19,12 @@
 CLI argument-parser errors exit 64. Skipped or filtered steps do not receive fresh output
 checks, so run success does not prove their outputs exist.
 
+Missing or invalid protected-release client settings, including the server URL, CA certificate, or
+customer identity file, exit 64. Customer identity or machine-policy refusals exit 77; an explicit
+missing, expired, or unavailable grant exits 79. A wrong endpoint, server failure, or invalid
+server response exits 70. Internal release-server responses include a correlation ID for the
+operator; give that ID to the server operator with the request details.
+
 For a packaged pipeline, send access failures to its publisher with the package version and exact
 error. For code 65 package-integrity failures, obtain the package again from its publisher. If the
 same error remains, ask the publisher to verify the package and access setup.
@@ -106,7 +112,7 @@ dependent findings. Fix the reported problems and validate again.
 | `invalid_step_exec` | A step's `exec` is empty, absolute, contains a backslash, or has an empty, dot, or traversal component. |
 | `unknown_dependency` | A `depends_on` entry names a step that is not declared. |
 | `teardown_dependency` | A non-teardown step depends on a teardown step. |
-| `cycle_detected` | A cycle exists in the `depends_on` graph. |
+| `cycle_detected` | A cycle exists in the step-ordering graph formed by `depends_on` and `gather`. |
 | `retry_limit_exceeded` | A retry count exceeds the maximum, on a step, in `[defaults]`, or on an `[[errors]]` entry. |
 | `invalid_threads_weight` | A step's `threads_weight` is 0. |
 | `threads_weight_on_fixed` | A step declares `threads_weight` alongside a fixed `threads = <int>`. |
@@ -137,14 +143,16 @@ dependent findings. Fix the reported problems and validate again.
 | `invalid_param_name` | A param name is not a letter or `_` followed by letters, digits, or `_`. |
 | `param_name_collision` | Two param declarations differ only in case, so they name one parameter. |
 | `unknown_param_group` | A param's `group` names a group that is not declared in `[groups]`. |
-| `invalid_param_increment` | A parameter increment is non-positive, non-finite, or used with a non-numeric type. |
+| `invalid_param_increment` | A parameter increment is non-positive, non-finite, used with a non-numeric type, lacks a `min` anchor, or has a fractional anchor for an integer parameter. |
+| `invalid_param_bound` | A parameter bound is non-finite. |
 | `unknown_param_field` | A key inside a `[params.<name>]` table is a scalar where a profile-override table was expected. |
 | `invalid_profile_override` | A `[params.<name>.<profile>]` table does not have the shape of a profile override. |
 | `removed_const_field` | The unsupported const field was used; declare readonly and a default. |
 | `bounds_violation` | A value is outside the `min`/`max`/`exclusive_min`/`exclusive_max` in force. |
-| `unsatisfiable_bounds` | The bounds in force admit no value at all, e.g. `min = 100` with `max = 10`. |
+| `unsatisfiable_bounds` | The effective bounds and increment admit no value, e.g. `min = 100` with `max = 10`. |
 | `enum_violation` | A value is not in the param's `enum`. |
 | `enum_type_mismatch` | An enum entry cannot be coerced to the parameter's declared type. |
+| `enum_no_valid_value` | No enum value satisfies the effective bounds and increment. |
 | `param_type_mismatch` | A value is not of the param's declared `type`, and cannot be coerced to it. |
 | `unknown_param` | `-p` or `-c` names a param the manifest does not declare. |
 | `missing_required_param` | No supplied, resumed, detected, profile-default, or base-default value resolves a declared parameter. |
