@@ -43,11 +43,10 @@ flowrs inspect <PIPELINE> --check-environment
 ## Read the result
 
 After setup, run files are under the work directory. Early validation refusals can leave no record;
-parameter-resolution failures can leave `status.json` without `params.json`:
+failures before accepting a resolved parameter set can leave `status.json` without `params`:
 
 ```text
-<work>/<task>/status.json   # machine-readable run and step results
-<work>/<task>/params.json   # resolved parameter values
+<work>/<task>/status.json    # run identity, resolved parameters, and step results
 <work>/<task>/logs/          # captured output from launched units
 <work>/<task>/tmp/           # scratch base; use --keep-tmp to retain scratch
 ```
@@ -56,7 +55,9 @@ Without `-t`, these files are directly under `<work>/`. `--tmp-dir` selects a di
 base.
 
 `status.json` is the file for automation. Its `schema_version` identifies the document format;
-optional fields are absent when they do not apply. The top-level `status` is `running`,
+optional fields are absent when they do not apply. Its `params` object contains the fully resolved
+uppercase parameter names and string values supplied to steps. An empty object means the run has no
+parameters; an absent field means no resolved set was accepted. The top-level `status` is `running`,
 `completed`, or `failed`. Each step records its status, timing, exit code when it ran, and any
 failure or skip reason. Scattered steps also record their item results.
 
