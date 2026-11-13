@@ -12,12 +12,12 @@
 | --- | --- |
 | 0 | Run succeeded; executed successful steps passed declared-output checks |
 | 1–63 | Author-defined [[errors]] codes; passed through |
-| 64 | Invalid invocation or value from the invocation |
+| 64 | Invalid invocation, supplied value, or protected-release client configuration |
 | 65 | Malformed or corrupt input data or package |
 | 70 | Runtime, process, or internal failure |
-| 77 | Local access identity is unusable |
+| 77 | Customer identity or client policy is rejected |
 | 78 | Manifest is invalid |
-| 79 | The pipeline is not authorized to run here |
+| 79 | The release server reports no usable grant or token |
 | 100–119 | Reserved input-health band; 100–109 are assigned |
 | 120 | Declared output missing after exit 0 |
 | 121 | Conflicting shared-cache replacement detected; resolve the conflict and rerun |
@@ -35,10 +35,16 @@ run success does not prove its outputs exist.
 
 The blame line is:
 
-- 64: fix the command, flag, config, or supplied value.
+- 64: fix the command, supplied value, or local protected-release settings.
 - 78: fix the manifest.
-- 77 or 79: send the publisher the exact error, package version, and exit code so they can check
-  the runner's access setup.
+- 70: check the release-server URL and deployment. Include any correlation ID when contacting the
+  server operator.
+- 77 or 79: send the publisher or server operator the exact error, package version, and exit code
+  so they can check customer policy or release access.
+
+Missing or invalid `FLOWRS_RELEASE_SERVER`, `FLOWRS_RELEASE_CA`, or `FLOWRS_IDENTITY` settings
+are local configuration errors (64). A wrong endpoint, server fault, or invalid server response is
+70. Internal server errors include a correlation ID for the operator.
 
 ## JSON Envelope
 
@@ -91,10 +97,10 @@ usually yields one diagnostic because parsing stops before validation.
 | Code | Raised when |
 | --- | --- |
 | `invalid_step_name` | A step name is empty, or contains a path separator or `..`. |
-| `invalid_step_exec` | A step's `exec` is empty, absolute, or contains a `.` or `..` path component. |
+| `invalid_step_exec` | A step's `exec` is empty, absolute, contains a backslash, or has an empty, dot, or traversal component. |
 | `unknown_dependency` | A `depends_on` entry names a step that is not declared. |
 | `teardown_dependency` | A non-teardown step depends on a teardown step. |
-| `cycle_detected` | A cycle exists in the `depends_on` graph. |
+| `cycle_detected` | A cycle exists in the step-ordering graph formed by `depends_on` and `gather`. |
 | `retry_limit_exceeded` | A retry count exceeds the maximum, on a step, in `[defaults]`, or on an `[[errors]]` entry. |
 | `invalid_threads_weight` | A step's `threads_weight` is 0. |
 | `threads_weight_on_fixed` | A step declares `threads_weight` alongside a fixed `threads = <int>`. |
@@ -125,14 +131,16 @@ usually yields one diagnostic because parsing stops before validation.
 | `invalid_param_name` | A param name is not a letter or `_` followed by letters, digits, or `_`. |
 | `param_name_collision` | Two param declarations differ only in case, so they name one parameter. |
 | `unknown_param_group` | A param's `group` names a group that is not declared in `[groups]`. |
-| `invalid_param_increment` | A parameter increment is non-positive, non-finite, or used with a non-numeric type. |
+| `invalid_param_increment` | A parameter increment is non-positive, non-finite, used with a non-numeric type, lacks a `min` anchor, or has a fractional anchor for an integer parameter. |
+| `invalid_param_bound` | A parameter bound is non-finite. |
 | `unknown_param_field` | A key inside a `[params.<name>]` table is a scalar where a profile-override table was expected. |
 | `invalid_profile_override` | A `[params.<name>.<profile>]` table does not have the shape of a profile override. |
 | `removed_const_field` | The unsupported const field was used; declare readonly and a default. |
 | `bounds_violation` | A value is outside the `min`/`max`/`exclusive_min`/`exclusive_max` in force. |
-| `unsatisfiable_bounds` | The bounds in force admit no value at all, e.g. `min = 100` with `max = 10`. |
+| `unsatisfiable_bounds` | The effective bounds and increment admit no value, e.g. `min = 100` with `max = 10`. |
 | `enum_violation` | A value is not in the param's `enum`. |
 | `enum_type_mismatch` | An enum entry cannot be coerced to the parameter's declared type. |
+| `enum_no_valid_value` | No enum value satisfies the effective bounds and increment. |
 | `param_type_mismatch` | A value is not of the param's declared `type`, and cannot be coerced to it. |
 | `unknown_param` | `-p` or `-c` names a param the manifest does not declare. |
 | `missing_required_param` | No supplied, resumed, detected, profile-default, or base-default value resolves a declared parameter. |
