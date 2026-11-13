@@ -39,7 +39,7 @@ selects the profile and checks remaining required values and cross-parameter con
 `on_start` runs before detection and receives this same settled snapshot. Parameters that depend on
 detector answers or profile selection remain absent until later hooks. If parameter preparation
 fails, `on_start` and `on_failure` receive no parameters. Do not put secrets in parameters;
-resolved values are saved in `params.json`.
+resolved values are saved in `status.json.params`.
 
 ## Hook scope and outcome
 
