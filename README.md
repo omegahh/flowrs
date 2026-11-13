@@ -169,14 +169,13 @@ After setup, run records are under the work directory (or under `WORK_DIR/TASK_I
 used). Early validation refusals can leave no record:
 
 ```text
-status.json    # machine-readable run and step results
-params.json    # resolved parameter values
+status.json    # run identity, resolved parameters, and step results
 logs/          # logs for steps, detectors, hooks, and scattered items
 tmp/           # scratch base; use --keep-tmp to retain scratch
 ```
 
-Read `status.json` for automation. It includes the schema version, run status, step outcomes,
-exit codes, timings, and scattered item results. The [running guide](https://github.com/omegahh/flowrs/blob/main/docs/running.md) explains
+Read `status.json` for automation. It includes the schema version, resolved parameters, run status,
+step outcomes, exit codes, timings, and scattered item results. The [running guide](https://github.com/omegahh/flowrs/blob/main/docs/running.md) explains
 slices, resume, caching, signals, and in-flight limits.
 
 ## Registry
