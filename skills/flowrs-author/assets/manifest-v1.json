@@ -262,7 +262,7 @@
           ]
         },
         "increment": {
-          "description": "Required increment for numeric values. Values are anchored at `min` when present, otherwise\nat zero: `min = 0, increment = 5` permits `0, 5, 10, ...`.",
+          "description": "Required increment for numeric values. An effective `min` is required as the anchor:\n`min = 1, increment = 5` permits `1, 6, 11, ...`.",
           "type": [
             "number",
             "null"
@@ -337,7 +337,7 @@
       "type": "object",
       "properties": {
         "on_error": {
-          "description": "A step failed with a specific resolved error: `error_code -> [scripts]`.\n\nAlso applies to detector failures with resolved errors. Cancellation does not trigger it.",
+          "description": "The first failure with each resolved error code in this run: `error_code -> [scripts]`.\n\nAlso applies to detector failures with resolved errors. Cancellation does not trigger it.\nEach code's scripts run once in list order, even if a hook fails or cannot launch. Error\nbatches run one at a time outside the step thread budget; every item failure is still recorded.",
           "type": "object",
           "additionalProperties": {
             "type": "array",
