@@ -65,7 +65,7 @@ parameters must have a supplied, resumed, detected, profile-default, or base-def
 
 The engine drops inherited variables whose names contain SECRET, TOKEN, PASSWORD, PASSWD,
 CREDENTIAL, API_KEY, APIKEY, or PRIVATE_KEY, case-insensitively. Do not put secrets in parameters:
-params.json records resolved values.
+status.json.params records resolved values.
 
 The current working directory is the directory from which flowrs was launched. Build paths from the
 engine variables.
@@ -177,11 +177,14 @@ absent fields are not inherited from the invoking environment.
 
 Hooks do not hold thread permits. Use them for author-defined side effects such as notifications,
 audit records, metrics, or external cleanup; do not use one to prepare files another step needs.
+Each on_error.CODE list is admitted once per invocation, including resumed runs, and error batches
+run one at a time. Repeated failures do not retry a batch whose hook failed or could not launch.
 Hook failure does not change the run result. Cancellation does not trigger a new on_error hook;
-hooks already running are allowed to finish. The invocation waits for started hooks before its final
-summary and scratch cleanup; each script has a five-minute timeout. The hook owns its operation and
-should exit nonzero when it fails. FlowRs launches the hook, captures its output, records exit 0 as
-completed and a nonzero exit as failed, and reports a warning. A wrapper that catches an internal
+admitted hooks, including queued error batches, are allowed to finish. The invocation waits for them
+before its final summary and scratch cleanup; each script has a five-minute timeout once it starts.
+The hook owns its operation and should exit nonzero when it fails. FlowRs launches the hook,
+captures its output, records exit 0 as completed and a nonzero exit as failed, and reports a warning.
+A wrapper that catches an internal
 error and returns 0 is recorded as completed. Missing scripts have skipped records; process launch
 failures only warn. Use a regular or teardown step when the work must produce pipeline inputs or its
 failure must fail the run.
